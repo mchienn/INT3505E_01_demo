@@ -97,16 +97,6 @@ def return_book(record_id):
     db.session.commit()
     return redirect(url_for('index'))
 
-# ============= RESTful API Routes =============
-# Demonstrate 6 REST principles:
-# 1. Client-Server Architecture
-# 2. Stateless
-# 3. Cacheable
-# 4. Uniform Interface
-# 5. Layered System
-# 6. Code on Demand (optional)
-
-# Books API
 @app.route('/api/books', methods=['GET'])
 def get_books():
     """GET /api/books - Retrieve all books (Uniform Interface)"""
@@ -202,39 +192,8 @@ def return_book_api(record_id):
     db.session.commit()
     return jsonify(record.to_dict())
 
-# API Documentation endpoint
-@app.route('/api')
-def api_docs():
-    """API Documentation demonstrating REST principles"""
-    docs = {
-        "title": "Library Management REST API",
-        "description": "Demonstrating 6 REST principles",
-        "principles": {
-            "1. Client-Server": "Clear separation between client and server",
-            "2. Stateless": "Each request contains all information needed",
-            "3. Cacheable": "Responses are cacheable (GET requests)",
-            "4. Uniform Interface": "Standard HTTP methods and URIs",
-            "5. Layered System": "Can add proxy, gateway layers",
-            "6. Code on Demand": "Optional - can send executable code"
-        },
-        "endpoints": {
-            "Books": {
-                "GET /api/books": "Get all books",
-                "GET /api/books/{id}": "Get specific book",
-                "POST /api/books": "Create new book",
-                "PUT /api/books/{id}": "Update book",
-                "DELETE /api/books/{id}": "Delete book"
-            },
-            "Borrow Records": {
-                "GET /api/borrow-records": "Get all borrow records",
-                "POST /api/borrow-records": "Create borrow record",
-                "PATCH /api/borrow-records/{id}/return": "Return book"
-            }
-        }
-    }
-    return jsonify(docs)
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+
     app.run(debug=True)
