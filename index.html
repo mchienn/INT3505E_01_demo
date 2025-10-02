@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Hệ thống Thư viện</h1>
+
+<h2>Danh sách Sách</h2>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Tiêu đề</th>
+        <th>Tác giả</th>
+        <th>Trạng thái</th>
+        <th>Hành động</th>
+    </tr>
+    {% for book in books %}
+    <tr>
+        <td>{{ book.id }}</td>
+        <td>{{ book.title }}</td>
+        <td>{{ book.author }}</td>
+        <td>
+            {% if book.available %}
+                Có sẵn
+            {% else %}
+                Đang được mượn
+            {% endif %}
+        </td>
+        <td>
+            {% if book.available %}
+                <a href="{{ url_for('borrow_book', book_id=book.id) }}" class="btn">Mượn</a>
+            {% endif %}
+            <a href="{{ url_for('delete_book', book_id=book.id) }}" class="btn danger" 
+               onclick="return confirm('Xóa sách này?')">Xóa</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<h2>Sách đang được mượn</h2>
+<table>
+    <tr>
+        <th>Sách</th>
+        <th>Người mượn</th>
+        <th>Ngày mượn</th>
+        <th>Hành động</th>
+    </tr>
+    {% for record in records %}
+    <tr>
+        <td>{{ record.book.title }}</td>
+        <td>{{ record.borrower_name }}</td>
+        <td>{{ record.borrow_date }}</td>
+        <td>
+            <a href="{{ url_for('return_book', record_id=record.id) }}" class="btn success">Trả sách</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

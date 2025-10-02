@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Mượn Sách</h2>
+
+<p><strong>Sách:</strong> {{ book.title }} - {{ book.author }}</p>
+
+<form method="POST" class="form">
+    <div>
+        <label>Tên người mượn:</label><br>
+        <input type="text" name="borrower_name" required>
+    </div>
+    <div>
+        <button type="submit" class="btn">Xác nhận mượn</button>
+        <a href="{{ url_for('index') }}" class="btn">Quay lại</a>
+    </div>
+</form>
+{% endblock %}

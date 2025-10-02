@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>REST API Demo - 6 Nguyên tắc REST</h1>
+
+<div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 4px solid #007bff;">
+    <h3>6 Nguyên tắc REST được demo:</h3>
+    <ol>
+        <li><strong>Client-Server:</strong> Tách biệt rõ ràng giữa client và server</li>
+        <li><strong>Stateless:</strong> Mỗi request chứa đầy đủ thông tin cần thiết</li>
+        <li><strong>Cacheable:</strong> Các response có thể cache (GET requests)</li>
+        <li><strong>Uniform Interface:</strong> Sử dụng HTTP methods và URIs chuẩn</li>
+        <li><strong>Layered System:</strong> Có thể thêm proxy, gateway layers</li>
+        <li><strong>Code on Demand:</strong> Tùy chọn - có thể gửi executable code</li>
+    </ol>
+</div>
+
+<h2>API Endpoints</h2>
+
+<h3>Books API</h3>
+<table>
+    <tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Test</th></tr>
+    <tr>
+        <td>GET</td>
+        <td>/api/books</td>
+        <td>Lấy tất cả sách</td>
+        <td><button onclick="testAPI('GET', '/api/books')" class="btn">Test</button></td>
+    </tr>
+    <tr>
+        <td>GET</td>
+        <td>/api/books/{id}</td>
+        <td>Lấy sách theo ID</td>
+        <td><button onclick="testAPI('GET', '/api/books/1')" class="btn">Test ID=1</button></td>
+    </tr>
+    <tr>
+        <td>POST</td>
+        <td>/api/books</td>
+        <td>Tạo sách mới</td>
+        <td><button onclick="createBook()" class="btn">Test</button></td>
+    </tr>
+    <tr>
+        <td>PUT</td>
+        <td>/api/books/{id}</td>
+        <td>Cập nhật sách</td>
+        <td><button onclick="updateBook()" class="btn">Test ID=1</button></td>
+    </tr>
+    <tr>
+        <td>DELETE</td>
+        <td>/api/books/{id}</td>
+        <td>Xóa sách</td>
+        <td><button onclick="deleteBook()" class="btn danger">Test ID=1</button></td>
+    </tr>
+</table>
+
+<h3>Borrow Records API</h3>
+<table>
+    <tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Test</th></tr>
+    <tr>
+        <td>GET</td>
+        <td>/api/borrow-records</td>
+        <td>Lấy tất cả bản ghi mượn</td>
+        <td><button onclick="testAPI('GET', '/api/borrow-records')" class="btn">Test</button></td>
+    </tr>
+    <tr>
+        <td>POST</td>
+        <td>/api/borrow-records</td>
+        <td>Tạo bản ghi mượn</td>
+        <td><button onclick="borrowBook()" class="btn">Test</button></td>
+    </tr>
+    <tr>
+        <td>PATCH</td>
+        <td>/api/borrow-records/{id}/return</td>
+        <td>Trả sách</td>
+        <td><button onclick="returnBookAPI()" class="btn success">Test ID=1</button></td>
+    </tr>
+</table>
+
+<h3>API Response</h3>
+<div style="margin: 20px 0;">
+    <label>Request:</label>
+    <div id="request" style="background: #f1f1f1; padding: 10px; margin: 5px 0; font-family: monospace;"></div>
+    
+    <label>Response:</label>
+    <div id="response" style="background: #f1f1f1; padding: 10px; margin: 5px 0; font-family: monospace; min-height: 100px;"></div>
+</div>
+
+<script>
+function testAPI(method, endpoint) {
+    document.getElementById('request').textContent = method + ' ' + endpoint;
+    
+    fetch(endpoint, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+
+function createBook() {
+    const data = {
+        title: "Test Book " + Date.now(),
+        author: "Test Author"
+    };
+    
+    document.getElementById('request').textContent = 'POST /api/books\nBody: ' + JSON.stringify(data);
+    
+    fetch('/api/books', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+
+function updateBook() {
+    const data = {
+        title: "Updated Book " + Date.now()
+    };
+    
+    document.getElementById('request').textContent = 'PUT /api/books/1\nBody: ' + JSON.stringify(data);
+    
+    fetch('/api/books/1', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+
+function deleteBook() {
+    if (!confirm('Xóa sách ID=1?')) return;
+    
+    document.getElementById('request').textContent = 'DELETE /api/books/1';
+    
+    fetch('/api/books/1', {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.status === 204) {
+            document.getElementById('response').textContent = 'Book deleted successfully (204 No Content)';
+        } else {
+            return response.json();
+        }
+    })
+    .then(data => {
+        if (data) {
+            document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+        }
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+
+function borrowBook() {
+    const data = {
+        book_id: 1,
+        borrower_name: "Test Borrower " + Date.now()
+    };
+    
+    document.getElementById('request').textContent = 'POST /api/borrow-records\nBody: ' + JSON.stringify(data);
+    
+    fetch('/api/borrow-records', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+
+function returnBookAPI() {
+    document.getElementById('request').textContent = 'PATCH /api/borrow-records/1/return';
+    
+    fetch('/api/borrow-records/1/return', {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    })
+    .catch(error => {
+        document.getElementById('response').textContent = 'Error: ' + error;
+    });
+}
+</script>
+{% endblock %}
