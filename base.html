@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Thư viện</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .nav { background: #f0f0f0; padding: 10px; margin-bottom: 20px; }
+        .nav a { margin-right: 20px; text-decoration: none; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .form { margin: 20px 0; }
+        .form input { margin: 5px; padding: 5px; }
+        .btn { padding: 5px 10px; margin: 5px; background: #007bff; color: white; text-decoration: none; border: none; }
+        .btn:hover { background: #0056b3; }
+        .danger { background: #dc3545; }
+        .success { background: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="{{ url_for('index') }}">Trang chủ</a>
+        <a href="{{ url_for('add_book') }}">Thêm sách</a>
+        <a href="{{ url_for('api_demo') }}">API Demo</a>
+    </div>
+    
+    {% block content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REST Client-Server Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .output {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .button-group {
+            margin: 20px 0;
+        }
+        .section-title {
+            color: #666;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 REST Client-Server Demo</h1>
+        <p style="text-align: center; color: #666;">
+            Minh họa tính chất Client-Server của REST API
+        </p>
+
+        <div class="section-title"><strong>Students Endpoints:</strong></div>
+        <div class="button-group">
+            <button onclick="fetchStudents()">📚 Get All Students</button>
+            <button onclick="fetchStudent(1)">👤 Get Student #1</button>
+            <button onclick="fetchStudent(2)">👤 Get Student #2</button>
+        </div>
+
+        <div class="section-title"><strong>Users Endpoints:</strong></div>
+        <div class="button-group">
+            <button onclick="fetchUsers()">👥 Get All Users</button>
+            <button onclick="fetchUser(1)">👤 Get User #1</button>
+            <button onclick="fetchUser(2)">👤 Get User #2</button>
+        </div>
+
+        <div class="section-title"><strong>Output:</strong></div>
+        <div id="output" class="output">Nhấn vào các nút phía trên để gọi API...</div>
+    </div>
+
+    <script>
+        const BASE_URL = "http://localhost:5000";
+        const outputDiv = document.getElementById('output');
+
+        function displayOutput(message) {
+            outputDiv.textContent = message;
+        }
+
+        async function fetchStudents() {
+            try {
+                displayOutput('⏳ Đang tải students...');
+                const response = await fetch(`${BASE_URL}/api/students`);
+                const data = await response.json();
+                displayOutput('✅ Students:\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                displayOutput('❌ Error fetching students:\n' + error.message);
+            }
+        }
+
+        async function fetchStudent(id) {
+            try {
+                displayOutput(`⏳ Đang tải student #${id}...`);
+                const response = await fetch(`${BASE_URL}/api/students/${id}`);
+                const data = await response.json();
+                displayOutput(`✅ Student #${id}:\n` + JSON.stringify(data, null, 2));
+            } catch (error) {
+                displayOutput(`❌ Error fetching student #${id}:\n` + error.message);
+            }
+        }
+
+        async function fetchUsers() {
+            try {
+                displayOutput('⏳ Đang tải users...');
+                const response = await fetch(`${BASE_URL}/api/users`);
+                const data = await response.json();
+                displayOutput('✅ Users:\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                displayOutput('❌ Error fetching users:\n' + error.message);
+            }
+        }
+
+        async function fetchUser(id) {
+            try {
+                displayOutput(`⏳ Đang tải user #${id}...`);
+                const response = await fetch(`${BASE_URL}/api/users/${id}`);
+                const data = await response.json();
+                displayOutput(`✅ User #${id}:\n` + JSON.stringify(data, null, 2));
+            } catch (error) {
+                displayOutput(`❌ Error fetching user #${id}:\n` + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

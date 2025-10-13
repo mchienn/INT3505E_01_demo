@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>REST Stateless Demo Client</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+      h2 { margin-top: 32px; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; max-width: 680px; }
+      label { display:block; margin: 8px 0 4px; }
+      input { padding: 6px 8px; width: 100%; max-width: 320px; }
+      button { margin-top: 8px; padding: 8px 12px; cursor: pointer; }
+      pre { background: #f7f7f7; padding: 12px; border-radius: 6px; overflow: auto; }
+      .row { display:flex; gap:16px; flex-wrap:wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>REST Stateless Demo Client</h1>
+
+    <div class="row">
+      <div class="card">
+        <h2>Stateful (server giữ state)</h2>
+        <label for="statefulName">Tên để lưu trên server</label>
+        <input id="statefulName" placeholder="VD: An" />
+        <div>
+          <button onclick="setStatefulName()">POST /stateful/set-name</button>
+          <button onclick="statefulHello()">GET /stateful/hello</button>
+        </div>
+        <h4>Kết quả</h4>
+        <pre id="statefulOut">{}</pre>
+      </div>
+
+      <div class="card">
+        <h2>Stateless (chuẩn REST)</h2>
+        <label for="statelessName">Tên gửi trong mỗi request</label>
+        <input id="statelessName" placeholder="VD: An" />
+        <div>
+          <button onclick="statelessHello()">GET /stateless/hello?name=...</button>
+        </div>
+        <h4>Kết quả</h4>
+        <pre id="statelessOut">{}</pre>
+      </div>
+    </div>
+
+    <script>
+      async function setStatefulName() {
+        const name = document.getElementById('statefulName').value.trim();
+        try {
+          const res = await fetch('/stateful/set-name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+          });
+          const data = await res.json();
+          show('statefulOut', data, res.status);
+        } catch (e) {
+          show('statefulOut', { error: e.message });
+        }
+      }
+
+      async function statefulHello() {
+        try {
+          const res = await fetch('/stateful/hello');
+          const data = await res.json();
+          show('statefulOut', data, res.status);
+        } catch (e) {
+          show('statefulOut', { error: e.message });
+        }
+      }
+
+      async function statelessHello() {
+        const name = document.getElementById('statelessName').value.trim();
+        try {
+          const res = await fetch('/stateless/hello?name=' + encodeURIComponent(name));
+          const data = await res.json();
+          show('statelessOut', data, res.status);
+        } catch (e) {
+          show('statelessOut', { error: e.message });
+        }
+      }
+
+      function show(id, obj, status) {
+        const pre = document.getElementById(id);
+        pre.textContent = JSON.stringify({ status, ...obj }, null, 2);
+      }
+    </script>
+  </body>
+</html>
