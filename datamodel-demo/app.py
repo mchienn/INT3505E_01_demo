@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from database import init_db, db
-from models import Book, User, BorrowRecord
+from models import Book, User, Borrowing, Author, BookAuthor
+from datetime import date, timedelta
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///library.db"
@@ -9,49 +10,87 @@ init_db(app)
 
 # --- Tạo dữ liệu mẫu ---
 def seed_data():
+    # Xóa dữ liệu cũ
+    Borrowing.query.delete()
+    BookAuthor.query.delete()
     Book.query.delete()
+    Author.query.delete()
     User.query.delete()
     db.session.commit()
 
-
-    sample_books = [
-    Book(title="NAVER AI Hackathon", author="Tran B", category="Programming", year=2021),
-    Book(title="Harry Potter", author="J.K Rowling", category="Fiction", year=2003),
-    Book(title="Lord of the Rings", author="J.R.R. Tolkien", category="Fantasy", year=2015),
-    Book(title="Deep Learning with Python", author="François Chollet", category="AI", year=2021),
-    Book(title="Clean Code", author="Robert C. Martin", category="Software Engineering", year=2008),
-    Book(title="The Pragmatic Programmer", author="Andrew Hunt", category="Software Engineering", year=1999),
-    Book(title="Artificial Intelligence: A Modern Approach", author="Stuart Russell", category="AI", year=2020),
-    Book(title="Python Crash Course", author="Eric Matthes", category="Programming", year=2019),
-    Book(title="Fluent Python", author="Luciano Ramalho", category="Programming", year=2022),
-    Book(title="Design Patterns", author="Erich Gamma", category="Software Design", year=2004),
-    Book(title="Machine Learning Yearning", author="Andrew Ng", category="AI", year=2020),
-    Book(title="Data Science from Scratch", author="Joel Grus", category="Data Science", year=2019),
-    Book(title="Hands-On Machine Learning", author="Aurélien Géron", category="AI", year=2022),
-    Book(title="Introduction to Algorithms", author="Thomas H. Cormen", category="Computer Science", year=2009),
-    Book(title="Operating System Concepts", author="Abraham Silberschatz", category="Computer Science", year=2018),
-    Book(title="Computer Networks", author="Andrew S. Tanenbaum", category="Networking", year=2011),
-    Book(title="Modern Web Development", author="Miroslav Kubat", category="Web Development", year=2023),
-    Book(title="The Clean Coder", author="Robert C. Martin", category="Software Engineering", year=2011),
-    Book(title="Introduction to Deep Learning", author="Eugene Charniak", category="AI", year=2019),
-    Book(title="The Art of Computer Programming", author="Donald Knuth", category="Computer Science", year=2011),
-    Book(title="Learn JavaScript Quickly", author="Code Quickly", category="Web Development", year=2020),
-    Book(title="Learning SQL", author="Alan Beaulieu", category="Database", year=2022),
-    Book(title="Database System Concepts", author="Abraham Silberschatz", category="Database", year=2019),
-    Book(title="You Don’t Know JS Yet", author="Kyle Simpson", category="Programming", year=2020),
-    Book(title="React Explained", author="Zac Gordon", category="Web Development", year=2021),
-    Book(title="Effective Java", author="Joshua Bloch", category="Programming", year=2018),
-    Book(title="Spring in Action", author="Craig Walls", category="Programming", year=2022),
-    Book(title="The Mythical Man-Month", author="Fred Brooks", category="Software Engineering", year=1995),
-    Book(title="The Phoenix Project", author="Gene Kim", category="DevOps", year=2013),
-    Book(title="Site Reliability Engineering", author="Betsy Beyer", category="DevOps", year=2016),
-]
-    sample_users = [
-            User(name="Minh Chiến", email="chien@example.com", phone="0123456789"),
-            User(name="Nguyen Anh", email="supafire@gmail.com", phone="0987654321"),
-        ]
-    db.session.add_all(sample_books + sample_users)
+    # --- Fake AUTHORS ---
+    authors = [
+        Author(name="J.K Rowling", address="London, UK", phone="123456789", email="jkrowling@example.com"),
+        Author(name="Robert C. Martin", address="Chicago, USA", phone="987654321", email="unclebob@example.com"),
+        Author(name="Andrew Ng", address="Stanford, USA", phone="567890123", email="andrewng@example.com"),
+        Author(name="Donald Knuth", address="California, USA", phone="102938475", email="knuth@example.com"),
+        Author(name="Joshua Bloch", address="New York, USA", phone="192837465", email="bloch@example.com"),
+        Author(name="Luciano Ramalho", address="São Paulo, Brazil", phone="384756192", email="luciano@example.com"),
+        Author(name="Stuart Russell", address="Berkeley, USA", phone="293847561", email="russell@example.com"),
+        Author(name="Craig Walls", address="Texas, USA", phone="948372615", email="craig@example.com"),
+    ]
+    db.session.add_all(authors)
     db.session.commit()
+
+    # --- Fake BOOKS ---
+    books = [
+        Book(title="NAVER AI Hackathon", author="Tran B", category="Programming", year=2021, available=True),
+        Book(title="Harry Potter", author="J.K Rowling", category="Fiction", year=2003, available=True),
+        Book(title="Lord of the Rings", author="J.R.R. Tolkien", category="Fantasy", year=2015, available=True),
+        Book(title="Clean Code", author="Robert C. Martin", category="Software Engineering", year=2008, available=True),
+        Book(title="Deep Learning with Python", author="François Chollet", category="AI", year=2021, available=True),
+        Book(title="Artificial Intelligence: A Modern Approach", author="Stuart Russell", category="AI", year=2020, available=True),
+        Book(title="Effective Java", author="Joshua Bloch", category="Programming", year=2018, available=True),
+        Book(title="Fluent Python", author="Luciano Ramalho", category="Programming", year=2022, available=True),
+        Book(title="Spring in Action", author="Craig Walls", category="Programming", year=2022, available=True),
+        Book(title="The Art of Computer Programming", author="Donald Knuth", category="Computer Science", year=2011, available=True),
+    ]
+    db.session.add_all(books)
+    db.session.commit()
+
+    # --- Fake USERS ---
+    users = [
+        User(name="Minh Chien", email="chien@example.com", phone="0123456789"),
+        User(name="Nguyen Nhat Anh", email="anh@example.com", phone="0987654321"),
+        User(name="Tran Le Bao Minh", email="minhtran@example.com", phone="0112233445"),
+        User(name="Le Ha Anh Tuan", email="hale@example.com", phone="0998877665"),
+    ]
+    db.session.add_all(users)
+    db.session.commit()
+
+    # --- BookAuthor: mapping nhiều-nhiều giữa Book và Author ---
+    pairs = [
+        (1, 3),  # NAVER AI Hackathon - Andrew Ng
+        (2, 1),  # Harry Potter - J.K Rowling
+        (3, 4),  # Lord of the Rings - Donald Knuth
+        (4, 2),  # Clean Code - Robert Martin
+        (5, 3),  # Deep Learning with Python - Andrew Ng
+        (6, 7),  # AIMA - Stuart Russell
+        (7, 5),  # Effective Java - Joshua Bloch
+        (8, 6),  # Fluent Python - Luciano Ramalho
+        (9, 8),  # Spring in Action - Craig Walls
+        (10, 4), # TAOCP - Donald Knuth
+    ]
+    book_authors = [BookAuthor(book_id=b, author_id=a) for b, a in pairs]
+    db.session.add_all(book_authors)
+    db.session.commit()
+
+    # --- Borrowing (giả lập mượn sách) ---
+    today = date.today()
+    borrow_samples = [
+        Borrowing(user_id=1, book_id=2, borrow_date=today - timedelta(days=10),
+                     due_date=today - timedelta(days=2), return_date=None, fine_amount=0),
+        Borrowing(user_id=2, book_id=3, borrow_date=today - timedelta(days=5),
+                     due_date=today + timedelta(days=5), return_date=None, fine_amount=0),
+        Borrowing(user_id=3, book_id=6, borrow_date=today - timedelta(days=20),
+                     due_date=today - timedelta(days=10), return_date=today - timedelta(days=8), fine_amount=0),
+        Borrowing(user_id=4, book_id=1, borrow_date=today - timedelta(days=2),
+                     due_date=today + timedelta(days=8), return_date=None, fine_amount=0),
+    ]
+    db.session.add_all(borrow_samples)
+    db.session.commit()
+    
+    print(f"✅ Seeded {len(books)} books, {len(authors)} authors, {len(users)} users, {len(borrow_samples)} borrowings")
 
 # ========== BOOK CRUD ==========
 
@@ -103,45 +142,22 @@ def delete_book(id):
     db.session.commit()
     return jsonify({"message": "Book deleted"})
 
-# ========== USER CRUD ==========
+
 @app.route("/users", methods=["GET"])
 def get_users():
     users = User.query.all()
     return jsonify([u.to_dict() for u in users])
 
-@app.route("/users", methods=["POST"])
-def add_user():
-    data = request.json
-    user = User(**data)
-    db.session.add(user)
-    db.session.commit()
-    return jsonify({"message": "User added", "user": user.to_dict()}), 201
 
-# ========== BORROW RECORD ==========
-@app.route("/borrow", methods=["POST"])
-def borrow_book():
-    data = request.json
-    user_id = data["user_id"]
-    book_id = data["book_id"]
-    record = BorrowRecord(user_id=user_id, book_id=book_id,
-                          borrow_date=data.get("borrow_date"),
-                          return_date=data.get("return_date"),
-                          status="borrowing")
-    # Mark book unavailable
-    book = Book.query.get(book_id)
-    book.available = False
-    db.session.add(record)
-    db.session.commit()
-    return jsonify({"message": "Book borrowed", "record": record.to_dict()})
+@app.route("/authors", methods=["GET"])
+def get_authors():
+    authors = Author.query.all()
+    return jsonify([a.to_dict() for a in authors])
 
-@app.route("/return/<int:record_id>", methods=["PUT"])
-def return_book(record_id):
-    record = BorrowRecord.query.get_or_404(record_id)
-    record.status = "returned"
-    book = Book.query.get(record.book_id)
-    book.available = True
-    db.session.commit()
-    return jsonify({"message": "Book returned", "record": record.to_dict()})
+@app.route("/borrowings", methods=["GET"])
+def get_borrowings():
+    borrowings = Borrowing.query.all()
+    return jsonify([b.to_dict() for b in borrowings])
 
 if __name__ == "__main__":
     with app.app_context():
