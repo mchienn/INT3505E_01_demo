@@ -1,8 +1,9 @@
-openapi: 3.0.3
+openapi: 3.0.0
 info:
   title: Book Management API
   description: Simple API to manage books (demo for OpenAPI + Swagger UI)
   version: 1.0.0
+
 servers:
   - url: http://localhost:3000
     description: Local development server

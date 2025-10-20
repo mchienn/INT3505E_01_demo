@@ -5,10 +5,11 @@ const app = express();
 //data
 const productData = {
   id: 42,
-  name: "Logitech MX Master 3S",
-  price: 109.99,
+  name: "Logitech MX Master Toronto 3S",
+  price: 109.98,
   inStock: true,
   gap: 100,
+  shippingStatus: "None",
 };
 
 app.get("/product", (req, res) => {
@@ -23,7 +24,7 @@ app.get("/product", (req, res) => {
   }
 
   //trả data và etag mới
-  res.set("Cache-Control", "public, max-age=0"); // Cho phép cache nếu có ETag
+  res.set("Cache-Control", "public, max-age=100"); // Cho phép cache nếu có ETag
   res.set("ETag", etag);
 
   console.log("[ETag MISMATCH or missing] Trả về 200 OK + JSON");
