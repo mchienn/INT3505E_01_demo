@@ -1,0 +1,394 @@
+openapi: 3.0.0
+info:
+  title: Book Management API
+  description: Simple API to manage books with JWT authentication demo
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+  - name: Auth
+    description: Authentication and authorization endpoints
+  - name: Books
+    description: Manage books
+  - name: Misc
+    description: Sample endpoints to demonstrate JWT-protected resources
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticate with username and password to receive a JWT access token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Missing credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current session
+      description: Add the current access token to the server blacklist so it can no longer be used.
+      security:
+        - JwtAuth: []
+      responses:
+        "200":
+          description: Logout succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user info
+      description: Return the authenticated user's information extracted from the JWT token.
+      security:
+        - JwtAuth: []
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Current user info
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /public:
+    get:
+      tags: [Misc]
+      summary: Public resource
+      description: Endpoint that does not require authentication.
+      security: []
+      responses:
+        "200":
+          description: Public message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This is public data anyone can access
+
+  /protected:
+    get:
+      tags: [Misc]
+      summary: Protected resource
+      description: Endpoint that requires a valid JWT token.
+      security:
+        - JwtAuth: []
+      responses:
+        "200":
+          description: Protected message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: This is protected data
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /admin:
+    get:
+      tags: [Misc]
+      summary: Admin-only resource
+      description: Endpoint restricted to users with the admin role.
+      security:
+        - JwtAuth: []
+      responses:
+        "200":
+          description: Admin message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Admin panel data
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+
+  /books:
+    get:
+      tags: [Books]
+      summary: Get all books
+      description: Retrieve a list of all books. Requires authentication.
+      security:
+        - JwtAuth: []
+      responses:
+        "200":
+          description: A JSON array of books
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Book"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+    post:
+      tags: [Books]
+      summary: Create a new book
+      description: Add a new book to the collection. Requires admin role.
+      security:
+        - JwtAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+      responses:
+        "201":
+          description: Book created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Book created successfully
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+
+  /books/{id}:
+    get:
+      tags: [Books]
+      summary: Get book by ID
+      security:
+        - JwtAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the book
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Book found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Book"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Book not found
+    put:
+      tags: [Books]
+      summary: Update a book
+      description: Requires admin role.
+      security:
+        - JwtAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+      responses:
+        "200":
+          description: Book updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Book updated
+                  data:
+                    $ref: "#/components/schemas/Book"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Book not found
+    delete:
+      tags: [Books]
+      summary: Delete a book
+      description: Requires admin role.
+      security:
+        - JwtAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Book deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Book not found
+
+components:
+  securitySchemes:
+    JwtAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Raw JWT token without the Bearer prefix. Example: Authorization: <JWT>
+  schemas:
+    Book:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Clean Code
+        author:
+          type: string
+          example: Robert C. Martin
+    BookInput:
+      type: object
+      required:
+        - title
+        - author
+      properties:
+        title:
+          type: string
+          example: Refactoring
+        author:
+          type: string
+          example: Martin Fowler
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          example: admin123
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Login successful
+        token:
+          type: string
+          description: JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        expiresIn:
+          type: integer
+          format: int32
+          example: 3600
+          description: Token lifetime in seconds
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: admin
+        role:
+          type: string
+          example: admin
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Unauthorized
+        message:
+          type: string
+          example: Invalid or expired token
+        code:
+          type: string
+          example: token_invalid
+  responses:
+    UnauthorizedError:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ForbiddenError:
+      description: User does not have permission to access the resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+security:
+  - JwtAuth: []
