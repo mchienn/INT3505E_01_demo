@@ -8,11 +8,7 @@ class Author(Base):
     __tablename__ = "authors"
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    # Quan hệ 1-nhiều: 1 tác giả có nhiều sách
     books = relationship("Book", back_populates="author")
-
-    def __repr__(self):
-        return f"<Author(id={self.id}, name='{self.name}')>"
 
 
 class Book(Base):
@@ -20,11 +16,7 @@ class Book(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)
     author_id = Column(Integer, ForeignKey("authors.id"), nullable=False)
-    # Quan hệ ngược: sách thuộc về 1 tác giả
     author = relationship("Author", back_populates="books")
-
-    def __repr__(self):
-        return f"<Book(id={self.id}, title='{self.title}')>"
 
 
 def seed_data(session):
@@ -39,7 +31,7 @@ def seed_data(session):
     for author_name, book_titles in authors_data:
         author = Author(name=author_name)
         session.add(author)
-        session.flush()  # Để có author.id
+        session.flush()
         for title in book_titles:
             book = Book(title=title, author_id=author.id)
             session.add(book)
@@ -47,14 +39,13 @@ def seed_data(session):
 
 
 def demonstrate_n_plus_1_problem(session):
-    # Query 1: Lấy tất cả tác giả
     print("\n[Query 1] SELECT * FROM authors")
     authors = session.query(Author).all()
     print(f"→ Tìm thấy {len(authors)} tác giả\n")
-    # Query 2..N+1: Lặp qua từng tác giả và query sách
+    
     for i, author in enumerate(authors, start=1):
         print(f"[Query {i+1}] SELECT * FROM books WHERE author_id = {author.id}")
-        books = author.books  # Trigger lazy loading → query riêng cho mỗi tác giả
+        books = author.books
         print(f"→ Tác giả '{author.name}' có {len(books)} sách:")
         for book in books:
             print(f"   - {book.title}")
@@ -62,16 +53,11 @@ def demonstrate_n_plus_1_problem(session):
 
 
 if __name__ == "__main__":
-    # Tạo database in-memory
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # Tạo dữ liệu mẫu
     seed_data(session)
-
-    # Demo N+1 query problem
     demonstrate_n_plus_1_problem(session)
-
     session.close()

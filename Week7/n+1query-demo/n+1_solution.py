@@ -10,9 +10,6 @@ class Author(Base):
     name = Column(String, nullable=False)
     books = relationship("Book", back_populates="author")
 
-    def __repr__(self):
-        return f"<Author(id={self.id}, name='{self.name}')>"
-
 
 class Book(Base):
     __tablename__ = "books"
@@ -20,9 +17,6 @@ class Book(Base):
     title = Column(String, nullable=False)
     author_id = Column(Integer, ForeignKey("authors.id"), nullable=False)
     author = relationship("Author", back_populates="books")
-
-    def __repr__(self):
-        return f"<Book(id={self.id}, title='{self.title}')>"
 
 
 def seed_data(session):
@@ -47,48 +41,46 @@ def seed_data(session):
             session.add(book)
     session.commit()
 
+
 def solution_1_joinedload(session):
-    print("[Query 1] SELECT authors.*, books.* FROM authors LEFT OUTER JOIN books ON authors.id = books.author_id")
+    print("[Query 1] SELECT authors.*, books.* FROM authors LEFT OUTER JOIN books")
     authors = session.query(Author).options(joinedload(Author.books)).all()
-    print(f"→ Đã load {len(authors)} tác giả cùng tất cả sách trong 1 query\n")
+    print(f"→ Load {len(authors)} tác giả + sách trong 1 query\n")
     
     for author in authors:
         books = author.books
-        print(f"✓ Tác giả '{author.name}' có {len(books)} sách:")
+        print(f"✓ '{author.name}' có {len(books)} sách:")
         for book in books:
             print(f"   - {book.title}")
         print()
 
+
 def solution_2_subqueryload(session):
     print("[Query 1] SELECT * FROM authors")
     authors = session.query(Author).options(subqueryload(Author.books)).all()
-    print(f"→ Kết quả: {[f'id={a.id}' for a in authors]}")
+    print(f"→ {[f'id={a.id}' for a in authors]}")
     
-    print("\n[Query 2] SELECT * FROM books WHERE books.author_id IN (1, 2, 3, 4, 5)")
-    print(f"→ Đã load {len(authors)} tác giả và tất cả sách trong 2 queries\n")
+    print("\n[Query 2] SELECT * FROM books WHERE author_id IN (1,2,3,4,5)")
+    print(f"→ Load {len(authors)} tác giả + sách trong 2 queries\n")
 
-    # Lặp qua authors và truy cập books - KHÔNG có query thêm
     for author in authors:
-        books = author.books  # Đã load sẵn, không query thêm
-        print(f"✓ Tác giả '{author.name}' có {len(books)} sách:")
+        books = author.books
+        print(f"✓ '{author.name}' có {len(books)} sách:")
         for book in books:
             print(f"   - {book.title}")
         print()
 
 
 if __name__ == "__main__":
-    # Tạo database in-memory
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
 
-    # Demo giải pháp 1: joinedload
     session1 = Session()
     seed_data(session1)
     solution_1_joinedload(session1)
     session1.close()
 
-    # Demo giải pháp 2: subqueryload
     session2 = Session()
     seed_data(session2)
     solution_2_subqueryload(session2)

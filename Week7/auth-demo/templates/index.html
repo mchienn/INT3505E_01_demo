@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Auto Refresh Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #fafafa;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            border: 1px solid #ccc;
+        }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px 5px 5px 0;
+            border: none;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button.danger {
+            background: #dc3545;
+        }
+        
+        button.danger:hover {
+            background: #c82333;
+        }
+        
+        .info {
+            background: #e7f3ff;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #007bff;
+        }
+        
+        .user-info {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .token-box {
+            background: #fffacd;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            margin: 10px 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>JWT Auto Refresh Demo</h1>
+    <p>Access Token: 15 min | Refresh Token: 7 days</p>
+
+    <!-- Login -->
+    <div id="loginCard" class="card">
+        <h3>Login</h3>
+        <input type="text" id="username" placeholder="Username" value="admin">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+        <div class="info">Test: admin/admin123 or user1/user123</div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboardCard" class="card hidden">
+        <h3>Dashboard</h3>
+        
+        <div id="message" class="info"></div>
+        
+        <div class="user-info" id="userInfo"></div>
+        
+        <div class="token-box" id="tokenStatus"></div>
+        
+        <button onclick="callProtectedAPI()">Call API</button>
+        <button onclick="getUserInfo()">Get Info</button>
+        <button class="danger" onclick="logout()">Logout</button>
+        
+        <h4>Current Access Token:</h4>
+        <div class="token-box" id="accessTokenDisplay"></div>
+        
+        <h4>Log:</h4>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const API_URL = '';
+        let tokenCheckInterval = null;
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+        }
+
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function getTokenExpiry(token) {
+            const payload = parseJwt(token);
+            if (!payload || !payload.exp) return null;
+            return payload.exp * 1000;
+        }
+
+        function formatTimeRemaining(ms) {
+            if (ms <= 0) return 'Expired';
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s`;
+        }
+
+        function updateTokenStatus() {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) return;
+
+            const expiry = getTokenExpiry(accessToken);
+            if (!expiry) return;
+
+            const now = Date.now();
+            const remaining = expiry - now;
+            
+            const statusDiv = document.getElementById('tokenStatus');
+            if (remaining > 0) {
+                statusDiv.textContent = `Token expires in: ${formatTimeRemaining(remaining)}`;
+            } else {
+                statusDiv.textContent = `Token expired - will auto-refresh on next API call`;
+            }
+        }
+
+        async function ensureValidToken() {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            if (!accessToken || !refreshToken) {
+                throw new Error('No tokens found');
+            }
+
+            const expiry = getTokenExpiry(accessToken);
+            const now = Date.now();
+
+            if (expiry && (now >= expiry || expiry - now < 60000)) {
+                addLog('Refreshing access token...');
+                
+                try {
+                    const response = await fetch(`${API_URL}/auth/refresh`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh_token: refreshToken })
+                    });
+
+                    if (!response.ok) throw new Error('Refresh failed');
+
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    
+                    addLog('Token refreshed!');
+                    updateTokenStatus();
+                    updateTokenDisplay();
+                    
+                    return data.access_token;
+                } catch (error) {
+                    addLog('Refresh failed: ' + error.message);
+                    logout();
+                    throw error;
+                }
+            }
+
+            return accessToken;
+        }
+
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const token = await ensureValidToken();
+                
+                const response = await fetch(`${API_URL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.status === 401) {
+                    throw new Error('Authentication failed');
+                }
+
+                return response;
+            } catch (error) {
+                addLog('API call failed: ' + error.message);
+                throw error;
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            addLog(`Logging in as ${username}...`);
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Login failed');
+                }
+
+                const data = await response.json();
+                
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('refresh_token', data.refresh_token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                addLog('Login successful!');
+                showDashboard(data.user);
+                
+                tokenCheckInterval = setInterval(updateTokenStatus, 1000);
+                
+            } catch (error) {
+                addLog('Login failed: ' + error.message);
+                alert('Login failed: ' + error.message);
+            }
+        }
+
+        async function logout() {
+            addLog('Logging out...');
+            
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            if (accessToken) {
+                try {
+                    await fetch(`${API_URL}/auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ refresh_token: refreshToken })
+                    });
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+            }
+
+            localStorage.clear();
+            clearInterval(tokenCheckInterval);
+            
+            document.getElementById('loginCard').classList.remove('hidden');
+            document.getElementById('dashboardCard').classList.add('hidden');
+            
+            addLog('Logged out');
+        }
+
+        function showDashboard(user) {
+            document.getElementById('loginCard').classList.add('hidden');
+            document.getElementById('dashboardCard').classList.remove('hidden');
+
+            document.getElementById('userInfo').innerHTML = `
+                User: ${user.username} (${user.role})<br>
+                Email: ${user.email}<br>
+                Name: ${user.full_name}
+            `;
+
+            updateTokenStatus();
+            updateTokenDisplay();
+
+            document.getElementById('message').textContent = `Welcome, ${user.full_name}!`;
+        }
+
+        function updateTokenDisplay() {
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                document.getElementById('accessTokenDisplay').textContent = accessToken;
+            }
+        }
+
+        async function callProtectedAPI() {
+            addLog('Calling protected API...');
+            
+            try {
+                const response = await apiCall('/api/protected');
+                const data = await response.json();
+                
+                addLog('Success: ' + data.message);
+                document.getElementById('message').textContent = data.message;
+            } catch (error) {
+                addLog('Error: ' + error.message);
+            }
+        }
+
+        async function getUserInfo() {
+            addLog('Getting user info...');
+            
+            try {
+                const response = await apiCall('/auth/me');
+                const data = await response.json();
+                
+                addLog('User info retrieved');
+                showDashboard(data.user);
+            } catch (error) {
+                addLog('Error: ' + error.message);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const user = localStorage.getItem('user');
+            const accessToken = localStorage.getItem('access_token');
+            
+            if (user && accessToken) {
+                addLog('Restoring session...');
+                showDashboard(JSON.parse(user));
+                tokenCheckInterval = setInterval(updateTokenStatus, 1000);
+            }
+        });
+    </script>
+</body>
+</html>
