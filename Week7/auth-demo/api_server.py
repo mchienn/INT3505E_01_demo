@@ -53,8 +53,20 @@ USERS_DB = {
 
 REFRESH_TOKENS_DB = {}
 BLACKLISTED_TOKENS = set()
-REFRESH_TOKENS_DB = {}
-BLACKLISTED_TOKENS = set()
+
+# OAuth 2.0 Clients Database
+OAUTH_CLIENTS = {
+    "third_party_app": {
+        "client_id": "third_party_app",
+        "client_secret": "secret_xyz_third_party",
+        "client_name": "Third Party Application",
+        "redirect_uris": ["http://localhost:5001/callback"],
+        "allowed_scopes": ["profile", "email"]
+    },
+}
+
+# OAuth 2.0 Authorization Codes (temporary storage)
+AUTHORIZATION_CODES = {}
 
 
 def validate_email(email):
@@ -242,6 +254,7 @@ def refresh():
 def logout():
     token = request.headers['Authorization'].split(" ")[1]
     BLACKLISTED_TOKENS.add(token)
+    print(f"\n[Auth] Access token blacklisted: {token[:20]}...")
     
     data = request.get_json() or {}
     if data.get('refresh_token'):
@@ -250,6 +263,7 @@ def logout():
             jti = payload.get('jti')
             if jti and jti in REFRESH_TOKENS_DB:
                 del REFRESH_TOKENS_DB[jti]
+                print(f"[Auth] Refresh token jti removed: {jti}")
         except:
             pass
     
@@ -575,28 +589,314 @@ def openapi_spec():
     return send_file('openapi.yaml', mimetype='text/yaml')
 
 
+# ============================================================================
+# OAuth 2.0 Endpoints (Authorization Server)
+# ============================================================================
+
+@app.route('/oauth/authorize', methods=['GET', 'POST'])
+def oauth_authorize():
+    """OAuth 2.0 Authorization Endpoint"""
+    
+    if request.method == 'GET':
+        # Parse OAuth 2.0 request parameters
+        client_id = request.args.get('client_id')
+        redirect_uri = request.args.get('redirect_uri')
+        scope = request.args.get('scope', 'profile email')
+        state = request.args.get('state', '')
+        
+        # Validate client
+        client = OAUTH_CLIENTS.get(client_id)
+        if not client:
+            return jsonify({'error': 'invalid_client', 'message': 'Client not found'}), 400
+        
+        if redirect_uri not in client['redirect_uris']:
+            return jsonify({'error': 'invalid_redirect_uri'}), 400
+        
+        # Show login & authorization page
+        auth_page = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Login - OAuth 2.0</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    max-width: 450px;
+                    margin: 80px auto;
+                    padding: 20px;
+                    background: #f5f5f5;
+                }}
+                .logo {{
+                    text-align: center;
+                    font-size: 36px;
+                    color: #4285f4;
+                    margin-bottom: 10px;
+                    font-weight: bold;
+                }}
+                .tagline {{
+                    text-align: center;
+                    color: #666;
+                    margin-bottom: 30px;
+                }}
+                .card {{
+                    background: white;
+                    border: 1px solid #ddd;
+                    padding: 30px;
+                }}
+                h2 {{
+                    margin-top: 0;
+                }}
+                .info {{
+                    background: #e7f3ff;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-left: 3px solid #4285f4;
+                }}
+                input {{
+                    width: 100%;
+                    padding: 10px;
+                    margin: 8px 0;
+                    border: 1px solid #ddd;
+                }}
+                button {{
+                    width: 100%;
+                    padding: 12px;
+                    background: #4285f4;
+                    color: white;
+                    border: none;
+                    cursor: pointer;
+                    margin-top: 10px;
+                }}
+                button:hover {{
+                    background: #357ae8;
+                }}
+                .hint {{
+                    font-size: 12px;
+                    color: #666;
+                    margin-top: 15px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="logo">MyAuth Server</div>
+            <div class="tagline">Secure OAuth 2.0 Provider</div>
+            
+            <div class="card">
+                <h2>Sign in</h2>
+                
+                <div class="info">
+                    <strong>{client['client_name']}</strong> wants to access your account
+                    <br><br>
+                    This will allow {client['client_name']} to:
+                    <ul style="margin: 10px 0;">
+                        <li>View your email address</li>
+                        <li>View your profile information</li>
+                    </ul>
+                </div>
+                
+                <form method="POST">
+                    <input type="text" name="username" placeholder="Username" value="admin" required>
+                    <input type="password" name="password" placeholder="Password" value="admin123" required>
+                    <input type="hidden" name="client_id" value="{client_id}">
+                    <input type="hidden" name="redirect_uri" value="{redirect_uri}">
+                    <input type="hidden" name="scope" value="{scope}">
+                    <input type="hidden" name="state" value="{state}">
+                    <button type="submit">Sign in and Continue</button>
+                </form>
+                
+                <div class="hint">
+                    <strong>Test accounts:</strong><br>
+                    • admin / admin123 (Admin)<br>
+                    • user1 / user123 (User)
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        return auth_page
+    
+    elif request.method == 'POST':
+        # Handle login and authorization
+        username = request.form.get('username')
+        password = request.form.get('password')
+        client_id = request.form.get('client_id')
+        redirect_uri = request.form.get('redirect_uri')
+        scope = request.form.get('scope')
+        state = request.form.get('state')
+        
+        # Authenticate user
+        user = USERS_DB.get(username)
+        if not user or not check_password_hash(user['password'], password):
+            return "Invalid credentials", 401
+        
+        if not user['is_active']:
+            return "Account is inactive", 403
+        
+        # Generate authorization code
+        auth_code = secrets.token_urlsafe(32)
+        AUTHORIZATION_CODES[auth_code] = {
+            'client_id': client_id,
+            'user_id': user['user_id'],
+            'username': username,
+            'scope': scope,
+            'expires_at': datetime.utcnow() + timedelta(minutes=10)
+        }
+        
+        print(f"\n[OAuth] Authorization code generated: {auth_code[:20]}... for {username}")
+        
+        # Redirect back to client with authorization code
+        from flask import redirect
+        separator = '&' if '?' in redirect_uri else '?'
+        return redirect(f"{redirect_uri}{separator}code={auth_code}&state={state}")
+
+
+@app.route('/oauth/token', methods=['POST'])
+def oauth_token():
+    """OAuth 2.0 Token Endpoint - Exchange code for JWT access token"""
+    
+    data = request.get_json() or request.form
+    grant_type = data.get('grant_type')
+    
+    if grant_type == 'authorization_code':
+        code = data.get('code')
+        client_id = data.get('client_id')
+        client_secret = data.get('client_secret')
+        
+        # Validate client credentials
+        client = OAUTH_CLIENTS.get(client_id)
+        if not client or client['client_secret'] != client_secret:
+            return jsonify({'error': 'invalid_client'}), 401
+        
+        # Validate authorization code
+        auth_data = AUTHORIZATION_CODES.get(code)
+        if not auth_data:
+            return jsonify({'error': 'invalid_grant', 'message': 'Code not found'}), 400
+        
+        if auth_data['expires_at'] < datetime.utcnow():
+            del AUTHORIZATION_CODES[code]
+            return jsonify({'error': 'invalid_grant', 'message': 'Code expired'}), 400
+        
+        if auth_data['client_id'] != client_id:
+            return jsonify({'error': 'invalid_grant', 'message': 'Client mismatch'}), 400
+        
+        # Get user
+        user = USERS_DB.get(auth_data['username'])
+        
+        # Generate JWT access token
+        access_token = create_access_token(user)
+        
+        # Delete authorization code (one-time use)
+        del AUTHORIZATION_CODES[code]
+        
+        print(f"\n[OAuth] Access token issued for {user['username']} to client {client_id}")
+        
+        return jsonify({
+            'access_token': access_token,
+            'token_type': 'Bearer',
+            'expires_in': ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            'scope': auth_data['scope']
+        }), 200
+    
+    else:
+        return jsonify({'error': 'unsupported_grant_type'}), 400
+
+
+@app.route('/oauth/userinfo', methods=['GET'])
+def oauth_userinfo():
+    """OAuth 2.0 UserInfo Endpoint - Get user info with access token"""
+    
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'missing_token'}), 401
+    
+    token = auth_header.split(' ')[1]
+    
+    payload = verify_access_token(token)
+    if not payload:
+        return jsonify({'error': 'invalid_token'}), 401
+    
+    user = USERS_DB.get(payload['username'])
+    
+    return jsonify({
+        'sub': str(user['user_id']),
+        'username': user['username'],
+        'email': user['email'],
+        'name': user['full_name'],
+        'role': user['role']
+    }), 200
+
+
+@app.route('/oauth/revoke', methods=['POST'])
+def oauth_revoke():
+    data = request.get_json() or request.form
+    token = data.get('token')
+    client_id = data.get('client_id')
+    client_secret = data.get('client_secret')
+
+    if not client_id or not client_secret:
+        return jsonify({'error': 'invalid_client', 'message': 'client_id and client_secret required'}), 401
+
+    client = OAUTH_CLIENTS.get(client_id)
+    if not client or client.get('client_secret') != client_secret:
+        return jsonify({'error': 'invalid_client'}), 401
+
+    if not token:
+        return jsonify({'error': 'invalid_request', 'message': 'token is required'}), 400
+
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=[ALGORITHM])
+        if payload.get('type') == 'access':
+            BLACKLISTED_TOKENS.add(token)
+            print(f"\n[OAuth] Access token revoked: {token[:20]}... by client {client_id}")
+            return ('', 200)
+    except Exception:
+        pass
+
+    return ('', 200)
+
+
+@app.route('/oauth/revoke', methods=['GET'])
+def oauth_revoke_form():
+    """Simple HTML form so third-party can test revoke via browser POST"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Revoke Token</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 60px auto; padding: 20px; }
+            .card { border: 1px solid #ddd; padding: 20px; border-radius: 6px; }
+            input, button { width: 100%; padding: 10px; margin: 8px 0; }
+            button { background: #2196F3; color: white; border: none; cursor: pointer; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>Revoke Access Token (Third-Party)</h2>
+            <p>Enter client credentials and the <strong>access token</strong> to revoke. Refresh token revocation is not available to third-party clients.</p>
+            <form method="POST" action="/oauth/revoke">
+                <label>Client ID</label>
+                <input type="text" name="client_id" value="" required />
+                <label>Client Secret</label>
+                <input type="password" name="client_secret" value="" required />
+                <label>Access Token</label>
+                <input type="text" name="token" value="" required />
+                <button type="submit">Revoke Token</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    '''
+
+
 if __name__ == '__main__':
     print("\n" + "="*70)
     print("🚀 JWT Authentication API v2.0 - Production Ready")
     print("="*70)
     print(f"\n📍 Server: http://localhost:5000")
-    print(f"� Demo UI: http://localhost:5000")
     print(f"�📖 API Docs: http://localhost:5000/docs")
-    print(f"\n🔐 Security Features:")
-    print(f"   ✓ Password hashing (bcrypt)")
-    print(f"   ✓ Access tokens (15 min expiry)")
-    print(f"   ✓ Refresh tokens (7 days expiry)")
-    print(f"   ✓ Token blacklisting on logout")
-    print(f"   ✓ Email & password validation")
-    print(f"   ✓ User activation/deactivation")
-    print(f"   ✓ Auto refresh token on expiry")
     print(f"\n👤 Test Accounts:")
     print(f"   Admin:  username=admin  password=admin123")
     print(f"   User:   username=user1  password=user123")
-    print(f"\n📝 Try These Flows:")
-    print(f"   1. Login → Wait for token to expire → Auto refresh!")
-    print(f"   2. Login → Logout → Session cleared")
-    print(f"   3. F5 refresh page → Session restored from LocalStorage")
-    print("="*70 + "\n")
     
     app.run(debug=True, port=5000)
