@@ -1,0 +1,742 @@
+openapi: 3.0.0
+info:
+  description: ""
+  title: JWT Authentication API with Product CRUD
+  version: 2.0.0
+servers:
+- description: Development server
+  url: http://localhost:5000
+tags:
+- description: User authentication and token management
+  name: Authentication
+- description: Product CRUD operations
+  name: Products
+paths:
+  /api/products:
+    get:
+      description: Retrieve list of all products (public endpoint)
+      operationId: api_products_get
+      parameters:
+      - description: Filter by category
+        explode: true
+        in: query
+        name: category
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Minimum price filter
+        explode: true
+        in: query
+        name: min_price
+        required: false
+        schema:
+          type: number
+        style: form
+      - description: Maximum price filter
+        explode: true
+        in: query
+        name: max_price
+        required: false
+        schema:
+          type: number
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_api_products_get_200_response"
+          description: List of products
+      summary: Get all products
+      tags:
+      - Products
+      x-openapi-router-controller: swagger_server.controllers.products_controller
+    post:
+      description: Create a new product (requires authentication)
+      operationId: api_products_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_api_products_post_request"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_api_products_post_201_response"
+          description: Product created successfully
+        "400":
+          description: Validation error
+        "401":
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: Create new product
+      tags:
+      - Products
+      x-openapi-router-controller: swagger_server.controllers.products_controller
+  /api/products/{product_id}:
+    delete:
+      description: Delete a product (owner or admin only)
+      operationId: api_products_product_id_delete
+      parameters:
+      - explode: false
+        in: path
+        name: product_id
+        required: true
+        schema:
+          type: integer
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_api_products__product_id__delete_200_response"
+          description: Product deleted successfully
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - not product owner
+        "404":
+          description: Product not found
+      security:
+      - BearerAuth: []
+      summary: Delete product
+      tags:
+      - Products
+      x-openapi-router-controller: swagger_server.controllers.products_controller
+    get:
+      description: Retrieve a specific product by its ID
+      operationId: api_products_product_id_get
+      parameters:
+      - explode: false
+        in: path
+        name: product_id
+        required: true
+        schema:
+          type: integer
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_api_products__product_id__get_200_response"
+          description: Product details
+        "404":
+          description: Product not found
+      summary: Get product by ID
+      tags:
+      - Products
+      x-openapi-router-controller: swagger_server.controllers.products_controller
+    put:
+      description: Update an existing product (owner or admin only)
+      operationId: api_products_product_id_put
+      parameters:
+      - explode: false
+        in: path
+        name: product_id
+        required: true
+        schema:
+          type: integer
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_api_products__product_id__put_request"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_api_products__product_id__put_200_response"
+          description: Product updated successfully
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - not product owner
+        "404":
+          description: Product not found
+      security:
+      - BearerAuth: []
+      summary: Update product
+      tags:
+      - Products
+      x-openapi-router-controller: swagger_server.controllers.products_controller
+  /auth/change-password:
+    post:
+      description: Change password for authenticated user
+      operationId: auth_change_password_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_auth_change_password_post_request"
+        required: true
+      responses:
+        "200":
+          description: Password changed successfully
+        "400":
+          description: Validation error
+        "401":
+          description: Invalid old password
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+  /auth/login:
+    post:
+      description: Authenticate user and receive access & refresh tokens
+      operationId: auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+          description: Login successful
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid credentials
+      summary: User login
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+  /auth/logout:
+    post:
+      operationId: auth_logout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_auth_logout_post_request"
+      responses:
+        "200":
+          description: Logged out successfully
+        "401":
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+  /auth/me:
+    get:
+      operationId: auth_me_get
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_auth_me_get_200_response"
+          description: User profile
+        "401":
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+  /auth/refresh:
+    post:
+      description: Exchange refresh token for new access & refresh tokens (rotation)
+      operationId: auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_auth_refresh_post_request"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_auth_refresh_post_200_response"
+          description: Token refreshed successfully
+        "401":
+          description: Invalid or expired refresh token
+      summary: Refresh access token
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+  /auth/register:
+    post:
+      operationId: auth_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/_auth_register_post_request"
+        required: true
+      responses:
+        "201":
+          description: User registered successfully
+        "400":
+          description: Validation error
+        "409":
+          description: Username already exists
+      summary: Register new user
+      tags:
+      - Authentication
+      x-openapi-router-controller: swagger_server.controllers.authentication_controller
+components:
+  schemas:
+    User:
+      example:
+        full_name: John Doe
+        role: user
+        is_active: true
+        user_id: 1
+        created_at: 2000-01-23T04:56:07.000+00:00
+        email: user1@example.com
+        username: user1
+      properties:
+        user_id:
+          example: 1
+          title: user_id
+          type: integer
+        username:
+          example: user1
+          title: username
+          type: string
+        email:
+          example: user1@example.com
+          format: email
+          title: email
+          type: string
+        full_name:
+          example: John Doe
+          title: full_name
+          type: string
+        role:
+          enum:
+          - admin
+          - user
+          example: user
+          title: role
+          type: string
+        is_active:
+          example: true
+          title: is_active
+          type: boolean
+        created_at:
+          format: date-time
+          title: created_at
+          type: string
+      title: User
+      type: object
+    Product:
+      example:
+        updated_at: 2000-01-23T04:56:07.000+00:00
+        price: 1299.99
+        product_id: 1
+        name: Laptop Dell XPS 15
+        description: High-performance laptop with 16GB RAM
+        created_at: 2000-01-23T04:56:07.000+00:00
+        category: Electronics
+        stock: 50
+        created_by: 1
+      properties:
+        product_id:
+          example: 1
+          title: product_id
+          type: integer
+        name:
+          example: Laptop Dell XPS 15
+          title: name
+          type: string
+        description:
+          example: High-performance laptop with 16GB RAM
+          title: description
+          type: string
+        price:
+          example: 1299.99
+          format: float
+          title: price
+          type: number
+        category:
+          example: Electronics
+          title: category
+          type: string
+        stock:
+          example: 50
+          title: stock
+          type: integer
+        created_by:
+          example: 1
+          title: created_by
+          type: integer
+        created_at:
+          format: date-time
+          title: created_at
+          type: string
+        updated_at:
+          format: date-time
+          title: updated_at
+          type: string
+      title: Product
+      type: object
+    LoginRequest:
+      example:
+        password: user123
+        username: user1
+      properties:
+        username:
+          example: user1
+          title: username
+          type: string
+        password:
+          example: user123
+          format: password
+          title: password
+          type: string
+      required:
+      - password
+      - username
+      title: LoginRequest
+      type: object
+    LoginResponse:
+      example:
+        access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        message: Login successful
+        token_type: Bearer
+        expires_in: 900
+        user:
+          full_name: John Doe
+          role: user
+          is_active: true
+          user_id: 1
+          created_at: 2000-01-23T04:56:07.000+00:00
+          email: user1@example.com
+          username: user1
+      properties:
+        message:
+          example: Login successful
+          title: message
+          type: string
+        access_token:
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          title: access_token
+          type: string
+        refresh_token:
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          title: refresh_token
+          type: string
+        token_type:
+          example: Bearer
+          title: token_type
+          type: string
+        expires_in:
+          example: 900
+          title: expires_in
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+      title: LoginResponse
+      type: object
+    Error:
+      example:
+        error: Invalid credentials
+      properties:
+        error:
+          example: Invalid credentials
+          title: error
+          type: string
+      title: Error
+      type: object
+    _auth_register_post_request:
+      properties:
+        username:
+          example: newuser
+          title: username
+          type: string
+        password:
+          example: SecurePass123
+          format: password
+          title: password
+          type: string
+        email:
+          example: newuser@example.com
+          format: email
+          title: email
+          type: string
+        full_name:
+          example: New User
+          title: full_name
+          type: string
+      required:
+      - email
+      - full_name
+      - password
+      - username
+      title: _auth_register_post_request
+      type: object
+    _auth_refresh_post_request:
+      properties:
+        refresh_token:
+          title: refresh_token
+          type: string
+      required:
+      - refresh_token
+      title: _auth_refresh_post_request
+      type: object
+    _auth_refresh_post_200_response:
+      example:
+        access_token: access_token
+        refresh_token: refresh_token
+        message: message
+        token_type: token_type
+        expires_in: 0
+      properties:
+        message:
+          title: message
+          type: string
+        access_token:
+          title: access_token
+          type: string
+        refresh_token:
+          title: refresh_token
+          type: string
+        token_type:
+          title: token_type
+          type: string
+        expires_in:
+          title: expires_in
+          type: integer
+      title: _auth_refresh_post_200_response
+      type: object
+    _auth_logout_post_request:
+      properties:
+        refresh_token:
+          description: Optional refresh token to revoke
+          title: refresh_token
+          type: string
+      title: _auth_logout_post_request
+      type: object
+    _auth_me_get_200_response:
+      example:
+        user:
+          full_name: John Doe
+          role: user
+          is_active: true
+          user_id: 1
+          created_at: 2000-01-23T04:56:07.000+00:00
+          email: user1@example.com
+          username: user1
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+      title: _auth_me_get_200_response
+      type: object
+    _auth_change_password_post_request:
+      properties:
+        old_password:
+          format: password
+          title: old_password
+          type: string
+        new_password:
+          format: password
+          title: new_password
+          type: string
+      required:
+      - new_password
+      - old_password
+      title: _auth_change_password_post_request
+      type: object
+    _api_products_get_200_response:
+      example:
+        total: 10
+        products:
+        - updated_at: 2000-01-23T04:56:07.000+00:00
+          price: 1299.99
+          product_id: 1
+          name: Laptop Dell XPS 15
+          description: High-performance laptop with 16GB RAM
+          created_at: 2000-01-23T04:56:07.000+00:00
+          category: Electronics
+          stock: 50
+          created_by: 1
+        - updated_at: 2000-01-23T04:56:07.000+00:00
+          price: 1299.99
+          product_id: 1
+          name: Laptop Dell XPS 15
+          description: High-performance laptop with 16GB RAM
+          created_at: 2000-01-23T04:56:07.000+00:00
+          category: Electronics
+          stock: 50
+          created_by: 1
+      properties:
+        total:
+          example: 10
+          title: total
+          type: integer
+        products:
+          items:
+            $ref: "#/components/schemas/Product"
+          title: products
+          type: array
+      title: _api_products_get_200_response
+      type: object
+    _api_products_post_request:
+      properties:
+        name:
+          example: Laptop Dell XPS 15
+          title: name
+          type: string
+        description:
+          example: High-performance laptop
+          title: description
+          type: string
+        price:
+          example: 1299.99
+          format: float
+          title: price
+          type: number
+        category:
+          example: Electronics
+          title: category
+          type: string
+        stock:
+          example: 50
+          title: stock
+          type: integer
+      required:
+      - category
+      - name
+      - price
+      title: _api_products_post_request
+      type: object
+    _api_products_post_201_response:
+      example:
+        product:
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          price: 1299.99
+          product_id: 1
+          name: Laptop Dell XPS 15
+          description: High-performance laptop with 16GB RAM
+          created_at: 2000-01-23T04:56:07.000+00:00
+          category: Electronics
+          stock: 50
+          created_by: 1
+        message: Product created successfully
+      properties:
+        message:
+          example: Product created successfully
+          title: message
+          type: string
+        product:
+          $ref: "#/components/schemas/Product"
+      title: _api_products_post_201_response
+      type: object
+    _api_products__product_id__get_200_response:
+      example:
+        product:
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          price: 1299.99
+          product_id: 1
+          name: Laptop Dell XPS 15
+          description: High-performance laptop with 16GB RAM
+          created_at: 2000-01-23T04:56:07.000+00:00
+          category: Electronics
+          stock: 50
+          created_by: 1
+      properties:
+        product:
+          $ref: "#/components/schemas/Product"
+      title: _api_products__product_id__get_200_response
+      type: object
+    _api_products__product_id__put_request:
+      properties:
+        name:
+          title: name
+          type: string
+        description:
+          title: description
+          type: string
+        price:
+          title: price
+          type: number
+        category:
+          title: category
+          type: string
+        stock:
+          title: stock
+          type: integer
+      title: _api_products__product_id__put_request
+      type: object
+    _api_products__product_id__put_200_response:
+      example:
+        product:
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          price: 1299.99
+          product_id: 1
+          name: Laptop Dell XPS 15
+          description: High-performance laptop with 16GB RAM
+          created_at: 2000-01-23T04:56:07.000+00:00
+          category: Electronics
+          stock: 50
+          created_by: 1
+        message: message
+      properties:
+        message:
+          title: message
+          type: string
+        product:
+          $ref: "#/components/schemas/Product"
+      title: _api_products__product_id__put_200_response
+      type: object
+    _api_products__product_id__delete_200_response_deleted_product:
+      example:
+        product_id: 0
+        name: name
+      properties:
+        product_id:
+          title: product_id
+          type: integer
+        name:
+          title: name
+          type: string
+      title: _api_products__product_id__delete_200_response_deleted_product
+      type: object
+    _api_products__product_id__delete_200_response:
+      example:
+        message: message
+        deleted_product:
+          product_id: 0
+          name: name
+      properties:
+        message:
+          title: message
+          type: string
+        deleted_product:
+          $ref: "#/components/schemas/_api_products__product_id__delete_200_response_deleted_product"
+      title: _api_products__product_id__delete_200_response
+      type: object
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      description: JWT access token obtained from /auth/login or /auth/refresh
+      scheme: bearer
+      type: http
+      x-bearerInfoFunc: swagger_server.controllers.security_controller.info_from_BearerAuth
