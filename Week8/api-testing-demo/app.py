@@ -15,8 +15,22 @@ def create_app():
         {'id': 7, 'name': 'Apparatus', 'price': 11.25},
         {'id': 8, 'name': 'Gizmo', 'price': 14.30},
         {'id': 9, 'name': 'Instrument', 'price': 19.99},
-                ]
-    app.config['next_id'] = 1
+    ]
+    # auth tokens (in-memory for demo)
+    app.config['tokens'] = set()
+
+    # helper to compute the next id on-demand from current products
+    def _get_next_id():
+        """Return next id equal to max(existing ids) + 1.
+
+        This computes the id each time so the in-memory store never gets
+        out-of-sync (e.g. when products are modified/deleted elsewhere).
+        """
+        products = app.config.get('products', [])
+        if not products:
+            return 1
+        max_id = max((p.get('id', 0) for p in products), default=0)
+        return max_id + 1
 
     @app.route('/api/sessions', methods=['POST'])
     def login():
@@ -25,26 +39,62 @@ def create_app():
         password = data.get('password')
         # demo-only credentials
         if username == 'admin' and password == 'secret':
-            return jsonify({'token': 'fake-token'}), 200
+            # generate a short-lived demo token
+            from uuid import uuid4
+            token = f"token-{uuid4().hex}"
+            app.config['tokens'].add(token)
+            return jsonify({'token': token}), 200
         return jsonify({'error': 'invalid credentials'}), 401
+
+
+    def _require_auth():
+        # Accept standard `Authorization: Bearer <token>` header or
+        # a fallback `X-Auth-Token` header for convenience in simple clients.
+        auth = request.headers.get('Authorization', '')
+        if auth and auth.startswith('Bearer '):
+            return auth.split(' ', 1)[1]
+        # fallback header
+        return request.headers.get('X-Auth-Token')
+
+
+    def require_token(func):
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            token = _require_auth()
+            if not token or token not in app.config['tokens']:
+                return jsonify({'error': 'unauthorized'}), 401
+            return func(*args, **kwargs)
+
+        return wrapper
 
     @app.route('/api/products', methods=['GET'])
     def list_products():
         return jsonify(app.config['products']), 200
 
     @app.route('/api/products', methods=['POST'])
+    @require_token
     def create_product():
         data = request.get_json() or {}
         name = data.get('name')
         price = data.get('price')
         if not name:
             return jsonify({'error': 'name required'}), 400
-        product = {'id': app.config['next_id'], 'name': name, 'price': price}
-        app.config['next_id'] += 1
+
+        # compute next id from current products to avoid any drift
+        existing_ids = {p.get('id') for p in app.config.get('products', [])}
+        nid = _get_next_id()
+        # in the rare case of a collision (concurrent manual edits), bump until unique
+        while nid in existing_ids:
+            nid += 1
+
+        product = {'id': nid, 'name': name, 'price': price}
         app.config['products'].append(product)
         return jsonify(product), 201
 
     @app.route('/api/products/<int:product_id>', methods=['PUT'])
+    @require_token
     def update_product(product_id):
         data = request.get_json() or {}
         for p in app.config['products']:
@@ -55,6 +105,7 @@ def create_app():
         return jsonify({'error': 'not found'}), 404
 
     @app.route('/api/products/<int:product_id>', methods=['DELETE'])
+    @require_token
     def delete_product(product_id):
         prods = app.config['products']
         for i, p in enumerate(prods):
