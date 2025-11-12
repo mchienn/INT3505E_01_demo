@@ -119,3 +119,23 @@ def create_app():
 
 if __name__ == '__main__':
     create_app().run(debug=True)
+
+# Load testing command:
+# $env:TEST_SCENARIO='load'; $env:VUS='50'; $env:DURATION='30s'
+# k6 run .\k6_test.js
+
+# Stress testing command:
+# $env:TEST_SCENARIO='stress'; $env:START_VUS='10'; $env:PEAK_VUS='200'
+# k6 run .\k6_test.js
+
+# Spike testing command:
+# $env:TEST_SCENARIO='spike'; $env:BASELINE_VUS='5'; $env:SPIKE_VUS='300'; $env:SPIKE_DURATION='15s'
+# k6 run .\k6_test.js
+
+# Soak testing command:
+# $env:TEST_SCENARIO='soak'; $env:VUS='10'; $env:DURATION='30m'
+# k6 run .\k6_test.js
+
+# Scale testing command:
+# $env:TEST_SCENARIO='scalability'; $env:S1='10'; $env:S2='50'; $env:S3='150'
+# k6 run .\k6_test.js
