@@ -35,7 +35,7 @@ components:
           example: USD
         source:
           type: string
-          description: Nguồn thanh toán (ví dụ: card_123456, account_789)
+          description: "Nguồn thanh toán (ví dụ: card_123456, account_789)"
           example: card_123456
         description:
           type: string
@@ -162,7 +162,7 @@ paths:
         Tạo payment với các tính năng mới:
         - **description**: Mô tả payment (optional)
         - **metadata**: Thông tin bổ sung dạng key-value (optional)
-        
+
         **Required fields:** amount, source
         **Optional fields:** currency (default: USD), description, metadata
       requestBody:
@@ -277,7 +277,7 @@ paths:
       description: |
         Cập nhật payment (status, metadata).
         **Tính năng mới:** V1 không hỗ trợ update.
-        
+
         - **status**: Cập nhật trạng thái payment
         - **metadata**: Merge với metadata hiện có (nếu có)
       parameters:
@@ -318,4 +318,3 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 error: "payment not found"
-

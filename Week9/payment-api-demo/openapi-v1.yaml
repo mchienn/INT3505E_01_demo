@@ -35,7 +35,7 @@ components:
           example: USD
         source:
           type: string
-          description: Nguồn thanh toán (ví dụ: card_123456, account_789)
+          description: "Nguồn thanh toán (ví dụ: card_123456, account_789)"
           example: card_123456
       additionalProperties: false
 
