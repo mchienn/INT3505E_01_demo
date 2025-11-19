@@ -134,7 +134,7 @@ GET /api/v2/payments          # NEW
 
 **Lưu ý:** V2 response có thêm các fields mới. Code cũ vẫn hoạt động nếu chỉ đọc các fields V1.
 
-### Bước 4: Sử dụng tính năng mới (Optional)
+### Bước 4: Sử dụng tính năng mới
 
 **Update Payment (V2 only):**
 
