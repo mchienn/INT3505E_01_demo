@@ -1,8 +1,15 @@
 from flask import Flask, jsonify, request
+from datetime import datetime, timedelta
+from functools import wraps
+import jwt
 
 
 def create_app():
     app = Flask(__name__)
+    
+    # JWT Secret key (in production, use environment variable)
+    app.config['JWT_SECRET_KEY'] = 'your-secret-key-change-in-production'
+    app.config['JWT_ALGORITHM'] = 'HS256'
 
     # simple in-memory store
     app.config['products'] = [
@@ -16,8 +23,19 @@ def create_app():
         {'id': 8, 'name': 'Gizmo', 'price': 14.30},
         {'id': 9, 'name': 'Instrument', 'price': 19.99},
     ]
-    # auth tokens (in-memory for demo)
-    app.config['tokens'] = set()
+    
+    # Revoked tokens blacklist (in production, use Redis or database)
+    app.config['revoked_tokens'] = set()
+    
+    # Demo users with roles
+    app.config['users'] = {
+        'admin': {'password': 'secret', 'role': 'admin'},
+        'user': {'password': 'pass123', 'role': 'user'},
+    }
+    
+    # Token expiry times (configurable)
+    ACCESS_TOKEN_EXPIRY = timedelta(minutes=15)
+    REFRESH_TOKEN_EXPIRY = timedelta(days=7)
 
     # helper to compute the next id on-demand from current products
     def _get_next_id():
@@ -31,50 +49,141 @@ def create_app():
             return 1
         max_id = max((p.get('id', 0) for p in products), default=0)
         return max_id + 1
-
-    @app.route('/api/sessions', methods=['POST'])
-    def login():
-        data = request.get_json() or {}
-        username = data.get('username')
-        password = data.get('password')
-        # demo-only credentials
-        if username == 'admin' and password == 'secret':
-            # generate a short-lived demo token
-            from uuid import uuid4
-            token = f"token-{uuid4().hex}"
-            app.config['tokens'].add(token)
-            return jsonify({'token': token}), 200
-        return jsonify({'error': 'invalid credentials'}), 401
-
-
-    def _require_auth():
-        # Accept standard `Authorization: Bearer <token>` header or
-        # a fallback `X-Auth-Token` header for convenience in simple clients.
+    
+    def _generate_jwt_token(username, role, token_type='access'):
+        """Generate a JWT token with claims."""
+        expiry = datetime.utcnow() + (ACCESS_TOKEN_EXPIRY if token_type == 'access' else REFRESH_TOKEN_EXPIRY)
+        payload = {
+            'sub': username,  # subject (user identifier)
+            'role': role,
+            'type': token_type,
+            'iat': datetime.utcnow(),  # issued at
+            'exp': expiry  # expiration
+        }
+        token = jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm=app.config['JWT_ALGORITHM'])
+        return token, expiry
+    
+    def _decode_jwt_token(token):
+        """Decode and validate JWT token. Returns payload or None."""
+        try:
+            # check if token is revoked
+            if token in app.config['revoked_tokens']:
+                return None
+            
+            payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=[app.config['JWT_ALGORITHM']])
+            return payload
+        except jwt.ExpiredSignatureError:
+            return None  # token expired
+        except jwt.InvalidTokenError:
+            return None  # invalid token
+    
+    def _validate_token(token, token_type='access'):
+        """Validate JWT token and return payload if valid."""
+        payload = _decode_jwt_token(token)
+        if not payload:
+            return None
+        if payload.get('type') != token_type:
+            return None
+        return payload
+    
+    def _get_token_from_request():
+        """Extract token from Authorization header or X-Auth-Token."""
         auth = request.headers.get('Authorization', '')
         if auth and auth.startswith('Bearer '):
             return auth.split(' ', 1)[1]
-        # fallback header
         return request.headers.get('X-Auth-Token')
-
-
+    
     def require_token(func):
-        from functools import wraps
-
+        """Decorator to require valid JWT access token."""
         @wraps(func)
         def wrapper(*args, **kwargs):
-            token = _require_auth()
-            if not token or token not in app.config['tokens']:
-                return jsonify({'error': 'unauthorized'}), 401
+            token = _get_token_from_request()
+            if not token:
+                return jsonify({'error': 'unauthorized', 'message': 'token missing'}), 401
+            
+            token_data = _validate_token(token, 'access')
+            if not token_data:
+                return jsonify({'error': 'unauthorized', 'message': 'invalid or expired access token'}), 401
+            
+            # attach user info from JWT claims to request context
+            request.current_user = token_data['sub']
+            request.current_role = token_data['role']
             return func(*args, **kwargs)
-
         return wrapper
+    
+    def require_role(*roles):
+        """Decorator to require specific role(s). Use after @require_token."""
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                if not hasattr(request, 'current_role') or request.current_role not in roles:
+                    return jsonify({'error': 'forbidden', 'message': f'requires role: {", ".join(roles)}'}), 403
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
+
+    @app.route('/api/sessions', methods=['POST'])
+    def login():
+        """Login endpoint: returns access_token and refresh_token."""
+        data = request.get_json() or {}
+        username = data.get('username')
+        password = data.get('password')
+        
+        user = app.config['users'].get(username)
+        if not user or user['password'] != password:
+            return jsonify({'error': 'invalid credentials'}), 401
+        
+        # generate both JWT tokens
+        access_token, access_expiry = _generate_jwt_token(username, user['role'], 'access')
+        refresh_token, refresh_expiry = _generate_jwt_token(username, user['role'], 'refresh')
+        
+        return jsonify({
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token_type': 'Bearer',
+            'expires_in': int(ACCESS_TOKEN_EXPIRY.total_seconds()),
+            'user': username,
+            'role': user['role']
+        }), 200
+    
+    @app.route('/api/sessions/refresh', methods=['POST'])
+    def refresh():
+        """Refresh endpoint: accepts refresh_token, returns new access_token."""
+        data = request.get_json() or {}
+        refresh_token = data.get('refresh_token')
+        
+        if not refresh_token:
+            return jsonify({'error': 'refresh_token required'}), 400
+        
+        token_data = _validate_token(refresh_token, 'refresh')
+        if not token_data:
+            return jsonify({'error': 'invalid or expired refresh token'}), 401
+        
+        # generate new JWT access token
+        access_token, access_expiry = _generate_jwt_token(token_data['sub'], token_data['role'], 'access')
+        
+        return jsonify({
+            'access_token': access_token,
+            'token_type': 'Bearer',
+            'expires_in': int(ACCESS_TOKEN_EXPIRY.total_seconds())
+        }), 200
+    
+    @app.route('/api/sessions/logout', methods=['POST'])
+    @require_token
+    def logout():
+        """Logout endpoint: revokes the current access token."""
+        token = _get_token_from_request()
+        if token:
+            app.config['revoked_tokens'].add(token)
+        return jsonify({'message': 'logged out successfully'}), 200
 
     @app.route('/api/products', methods=['GET'])
     def list_products():
         return jsonify(app.config['products']), 200
 
-    @app.route('/api/products', methods=['POST'])
+    @app.route('/api/products', methods=['POST'])%
     @require_token
+    @require_role('admin')  # only admin can create products
     def create_product():
         data = request.get_json() or {}
         name = data.get('name')
@@ -106,6 +215,7 @@ def create_app():
 
     @app.route('/api/products/<int:product_id>', methods=['DELETE'])
     @require_token
+    @require_role('admin')  # only admin can delete products
     def delete_product(product_id):
         prods = app.config['products']
         for i, p in enumerate(prods):

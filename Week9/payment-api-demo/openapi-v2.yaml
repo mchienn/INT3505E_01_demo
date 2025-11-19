@@ -1,0 +1,321 @@
+openapi: 3.0.0
+info:
+  title: Payment API - Version 2
+  description: |
+    Payment API Version 2 (Enhanced)
+    API nâng cao với các tính năng mới: description, metadata, update, và list endpoints.
+  version: 2.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+
+tags:
+  - name: Payments
+    description: Payment operations
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - amount
+        - source
+      properties:
+        amount:
+          type: number
+          format: float
+          minimum: 0.01
+          description: Số tiền thanh toán (phải > 0)
+          example: 100.00
+        currency:
+          type: string
+          default: USD
+          description: Loại tiền tệ
+          example: USD
+        source:
+          type: string
+          description: Nguồn thanh toán (ví dụ: card_123456, account_789)
+          example: card_123456
+        description:
+          type: string
+          description: Mô tả payment (optional)
+          example: "Payment for order #123"
+          maxLength: 500
+        metadata:
+          type: object
+          description: Thông tin bổ sung dạng key-value (optional)
+          additionalProperties:
+            type: string
+          example:
+            order_id: "123"
+            customer_id: "456"
+            invoice_number: "INV-2024-001"
+      additionalProperties: false
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Payment ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: number
+          format: float
+          example: 100.00
+        currency:
+          type: string
+          example: USD
+        source:
+          type: string
+          example: card_123456
+        description:
+          type: string
+          nullable: true
+          description: Mô tả payment
+          example: "Payment for order #123"
+        metadata:
+          type: object
+          nullable: true
+          description: Thông tin bổ sung
+          additionalProperties:
+            type: string
+          example:
+            order_id: "123"
+            customer_id: "456"
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled]
+          example: pending
+        created_at:
+          type: string
+          format: date-time
+          description: Thời gian tạo payment
+          example: "2024-01-01T12:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Thời gian cập nhật payment lần cuối
+          example: "2024-01-01T12:30:00Z"
+        version:
+          type: string
+          enum: [v1, v2]
+          description: API version được sử dụng để tạo payment
+          example: v2
+
+    PaymentUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled]
+          description: Cập nhật trạng thái payment
+          example: completed
+        metadata:
+          type: object
+          description: Cập nhật hoặc thêm metadata (merge với metadata hiện có)
+          additionalProperties:
+            type: string
+          example:
+            processed_by: "system"
+            processed_at: "2024-01-01T12:30:00Z"
+      additionalProperties: false
+
+    PaymentListResponse:
+      type: object
+      properties:
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentResponse"
+        total:
+          type: integer
+          description: Tổng số payments (sau khi filter)
+          example: 25
+        limit:
+          type: integer
+          description: Số lượng kết quả mỗi trang
+          example: 10
+        offset:
+          type: integer
+          description: Vị trí bắt đầu
+          example: 0
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Thông báo lỗi
+          example: "payment not found"
+
+paths:
+  /api/v2/payments:
+    post:
+      tags:
+        - Payments
+      summary: Tạo payment (Enhanced)
+      description: |
+        Tạo payment với các tính năng mới:
+        - **description**: Mô tả payment (optional)
+        - **metadata**: Thông tin bổ sung dạng key-value (optional)
+        
+        **Required fields:** amount, source
+        **Optional fields:** currency (default: USD), description, metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "201":
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "amount must be positive"
+
+    get:
+      tags:
+        - Payments
+      summary: Liệt kê payments (New Endpoint)
+      description: |
+        Liệt kê payments với filtering và pagination.
+        **Tính năng mới:** V1 không có endpoint này.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed, cancelled]
+          description: Lọc theo trạng thái
+          example: pending
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Lọc theo loại tiền tệ
+          example: USD
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Số lượng kết quả mỗi trang
+          example: 10
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Vị trí bắt đầu (cho pagination)
+          example: 0
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentListResponse"
+
+  /api/v2/payments/{payment_id}:
+    get:
+      tags:
+        - Payments
+      summary: Lấy payment (Enhanced Response)
+      description: |
+        Lấy thông tin payment với response format mới.
+        Bao gồm các fields mới: description, metadata, updated_at, version
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Payment ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "payment not found"
+
+    patch:
+      tags:
+        - Payments
+      summary: Cập nhật payment (New Endpoint)
+      description: |
+        Cập nhật payment (status, metadata).
+        **Tính năng mới:** V1 không hỗ trợ update.
+        
+        - **status**: Cập nhật trạng thái payment
+        - **metadata**: Merge với metadata hiện có (nếu có)
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Payment ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentUpdateRequest"
+      responses:
+        "200":
+          description: Payment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "invalid status"
+        "404":
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "payment not found"
+

@@ -1,0 +1,140 @@
+openapi: 3.0.0
+info:
+  title: Payment API - Version 1
+  description: |
+    Payment API Version 1 (Legacy)
+    API đơn giản với các tính năng cơ bản.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+
+tags:
+  - name: Payments
+    description: Payment operations
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - amount
+        - source
+      properties:
+        amount:
+          type: number
+          format: float
+          minimum: 0.01
+          description: Số tiền thanh toán (phải > 0)
+          example: 100.00
+        currency:
+          type: string
+          default: USD
+          description: Loại tiền tệ
+          example: USD
+        source:
+          type: string
+          description: Nguồn thanh toán (ví dụ: card_123456, account_789)
+          example: card_123456
+      additionalProperties: false
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Payment ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: number
+          format: float
+          example: 100.00
+        currency:
+          type: string
+          example: USD
+        source:
+          type: string
+          example: card_123456
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled]
+          example: pending
+        created_at:
+          type: string
+          format: date-time
+          description: Thời gian tạo payment
+          example: "2024-01-01T12:00:00Z"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Thông báo lỗi
+          example: "payment not found"
+
+paths:
+  /api/v1/payments:
+    post:
+      tags:
+        - Payments
+      summary: Tạo payment
+      description: |
+        Tạo payment đơn giản với các thông tin cơ bản.
+        **Required fields:** amount, source
+        **Optional fields:** currency (default: USD)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "201":
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "amount must be positive"
+
+  /api/v1/payments/{payment_id}:
+    get:
+      tags:
+        - Payments
+      summary: Lấy trạng thái payment
+      description: Lấy thông tin payment theo ID
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Payment ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "payment not found"
+
