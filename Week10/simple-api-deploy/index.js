@@ -45,6 +45,14 @@ const register = new client.Registry();
 // Add default metrics (cpu, memory, etc.)
 client.collectDefaultMetrics({ register });
 
+// 1. Counter: Total requests
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+// 2. Histogram: Request duration
 const httpRequestDurationMicroseconds = new client.Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',
@@ -52,22 +60,36 @@ const httpRequestDurationMicroseconds = new client.Histogram({
   buckets: [0.1, 0.5, 1, 1.5, 2, 5]
 });
 
-const httpRequestsTotal = new client.Counter({
-  name: 'http_requests_total',
-  help: 'Total number of HTTP requests',
-  labelNames: ['method', 'route', 'status_code']
+// 3. Gauge: Active requests
+const activeRequests = new client.Gauge({
+  name: 'active_requests',
+  help: 'Number of active requests',
+  labelNames: ['method']
 });
 
-register.registerMetric(httpRequestDurationMicroseconds);
+// 4. Summary: Request duration summary
+const requestDurationSummary = new client.Summary({
+  name: 'http_request_duration_summary_seconds',
+  help: 'Summary of request duration in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  percentiles: [0.5, 0.9, 0.99]
+});
+
 register.registerMetric(httpRequestsTotal);
+register.registerMetric(httpRequestDurationMicroseconds);
+register.registerMetric(activeRequests);
+register.registerMetric(requestDurationSummary);
 
 // Request Logging & Monitoring Middleware
 app.use((req, res, next) => {
   const start = Date.now();
+  activeRequests.inc({ method: req.method });
 
   res.on('finish', () => {
     const duration = Date.now() - start;
     const durationSeconds = duration / 1000;
+
+    activeRequests.dec({ method: req.method });
 
     // Log with Winston
     logger.info({
@@ -82,13 +104,17 @@ app.use((req, res, next) => {
     // Use req.route ? req.route.path : req.path to avoid high cardinality with IDs
     const route = req.route ? req.route.path : req.path;
 
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+
     httpRequestDurationMicroseconds
       .labels(req.method, route, res.statusCode)
       .observe(durationSeconds);
 
-    httpRequestsTotal
+    requestDurationSummary
       .labels(req.method, route, res.statusCode)
-      .inc();
+      .observe(durationSeconds);
   });
   next();
 });
