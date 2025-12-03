@@ -1,0 +1,836 @@
+openapi: 3.0.3
+info:
+  title: Order Service API
+  description: |
+    API đơn giản cho Order Service bao gồm:
+    - REST CRUD operations cho orders
+    - Query endpoint để tìm kiếm orders
+    - Webhook endpoint để notify bên thứ ba
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Development server
+
+tags:
+  - name: Orders
+    description: Quản lý đơn hàng (CRUD operations)
+  - name: Query
+    description: Tìm kiếm và lọc đơn hàng
+  - name: Webhooks
+    description: Quản lý webhook notifications
+
+paths:
+  # ============= CRUD Operations =============
+  /orders:
+    get:
+      tags:
+        - Orders
+      summary: Lấy danh sách tất cả orders
+      description: Trả về danh sách tất cả đơn hàng với phân trang
+      operationId: getOrders
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Danh sách orders thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Orders
+      summary: Tạo order mới
+      description: Tạo một đơn hàng mới và trigger webhook notification
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order được tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /orders/{orderId}:
+    get:
+      tags:
+        - Orders
+      summary: Lấy thông tin một order
+      description: Trả về chi tiết của một đơn hàng theo ID
+      operationId: getOrderById
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      responses:
+        '200':
+          description: Thông tin order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Orders
+      summary: Cập nhật toàn bộ order
+      description: Cập nhật toàn bộ thông tin của một đơn hàng
+      operationId: updateOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderRequest'
+      responses:
+        '200':
+          description: Order được cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags:
+        - Orders
+      summary: Cập nhật một phần order
+      description: Cập nhật một phần thông tin của đơn hàng (ví dụ: thay đổi status)
+      operationId: patchOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchOrderRequest'
+      responses:
+        '200':
+          description: Order được cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Orders
+      summary: Xóa order
+      description: Xóa một đơn hàng theo ID
+      operationId: deleteOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      responses:
+        '204':
+          description: Order được xóa thành công
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============= Query Endpoint =============
+  /orders/search:
+    get:
+      tags:
+        - Query
+      summary: Tìm kiếm orders
+      description: |
+        Tìm kiếm đơn hàng với nhiều tiêu chí:
+        - Theo customer ID
+        - Theo trạng thái
+        - Theo khoảng thời gian
+        - Theo khoảng giá
+      operationId: searchOrders
+      parameters:
+        - name: customerId
+          in: query
+          description: ID của khách hàng
+          schema:
+            type: string
+          example: "cust_123"
+        - name: status
+          in: query
+          description: Trạng thái đơn hàng
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: fromDate
+          in: query
+          description: Ngày bắt đầu (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-01-01T00:00:00Z"
+        - name: toDate
+          in: query
+          description: Ngày kết thúc (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-12-31T23:59:59Z"
+        - name: minTotal
+          in: query
+          description: Tổng tiền tối thiểu
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          example: 100000
+        - name: maxTotal
+          in: query
+          description: Tổng tiền tối đa
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          example: 1000000
+        - name: sortBy
+          in: query
+          description: Sắp xếp theo trường
+          schema:
+            type: string
+            enum: [createdAt, totalAmount, status]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Thứ tự sắp xếp
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Kết quả tìm kiếm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============= Webhook Endpoints =============
+  /webhooks:
+    get:
+      tags:
+        - Webhooks
+      summary: Lấy danh sách webhooks đã đăng ký
+      description: Trả về tất cả webhook endpoints đã được đăng ký
+      operationId: getWebhooks
+      responses:
+        '200':
+          description: Danh sách webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Webhooks
+      summary: Đăng ký webhook mới
+      description: |
+        Đăng ký một webhook endpoint để nhận notifications khi có sự kiện xảy ra.
+        Các sự kiện hỗ trợ:
+        - order.created: Khi có order mới
+        - order.updated: Khi order được cập nhật
+        - order.status_changed: Khi status order thay đổi
+        - order.deleted: Khi order bị xóa
+      operationId: registerWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook được đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /webhooks/{webhookId}:
+    get:
+      tags:
+        - Webhooks
+      summary: Lấy thông tin webhook
+      description: Trả về chi tiết của một webhook đã đăng ký
+      operationId: getWebhookById
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdParam'
+      responses:
+        '200':
+          description: Thông tin webhook
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Webhooks
+      summary: Cập nhật webhook
+      description: Cập nhật thông tin của một webhook đã đăng ký
+      operationId: updateWebhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWebhookRequest'
+      responses:
+        '200':
+          description: Webhook được cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Webhooks
+      summary: Hủy đăng ký webhook
+      description: Xóa một webhook đã đăng ký
+      operationId: deleteWebhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdParam'
+      responses:
+        '204':
+          description: Webhook được xóa thành công
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /webhooks/{webhookId}/test:
+    post:
+      tags:
+        - Webhooks
+      summary: Test webhook
+      description: Gửi một test payload đến webhook endpoint để verify kết nối
+      operationId: testWebhook
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdParam'
+      responses:
+        '200':
+          description: Test webhook thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookTestResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  # ============= Schemas =============
+  schemas:
+    # Order schemas
+    Order:
+      type: object
+      required:
+        - id
+        - customerId
+        - items
+        - totalAmount
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: ID duy nhất của order
+          example: "ord_abc123"
+        customerId:
+          type: string
+          description: ID của khách hàng
+          example: "cust_123"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+          minItems: 1
+        totalAmount:
+          type: number
+          format: double
+          description: Tổng tiền đơn hàng
+          example: 250000
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+          description: Ghi chú đơn hàng
+          example: "Giao hàng giờ hành chính"
+        createdAt:
+          type: string
+          format: date-time
+          description: Thời gian tạo
+          example: "2025-12-03T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Thời gian cập nhật lần cuối
+          example: "2025-12-03T10:30:00Z"
+
+    OrderItem:
+      type: object
+      required:
+        - productId
+        - productName
+        - quantity
+        - unitPrice
+      properties:
+        productId:
+          type: string
+          description: ID sản phẩm
+          example: "prod_xyz789"
+        productName:
+          type: string
+          description: Tên sản phẩm
+          example: "Laptop Dell XPS 15"
+        quantity:
+          type: integer
+          minimum: 1
+          description: Số lượng
+          example: 1
+        unitPrice:
+          type: number
+          format: double
+          description: Đơn giá
+          example: 25000000
+
+    OrderStatus:
+      type: string
+      enum:
+        - pending
+        - confirmed
+        - processing
+        - shipped
+        - delivered
+        - cancelled
+      description: Trạng thái đơn hàng
+      example: "pending"
+
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: "123 Nguyen Hue"
+        city:
+          type: string
+          example: "Ho Chi Minh"
+        district:
+          type: string
+          example: "District 1"
+        postalCode:
+          type: string
+          example: "700000"
+        country:
+          type: string
+          default: "Vietnam"
+          example: "Vietnam"
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - customerId
+        - items
+      properties:
+        customerId:
+          type: string
+          description: ID của khách hàng
+          example: "cust_123"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+          minItems: 1
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+          example: "Giao hàng giờ hành chính"
+
+    UpdateOrderRequest:
+      type: object
+      required:
+        - customerId
+        - items
+        - status
+      properties:
+        customerId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+          minItems: 1
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+
+    PatchOrderRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        notes:
+          type: string
+
+    OrderListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    OrderSearchResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        filters:
+          type: object
+          description: Các filter đã áp dụng
+          additionalProperties: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          description: Tổng số records
+          example: 100
+        totalPages:
+          type: integer
+          description: Tổng số trang
+          example: 5
+
+    # Webhook schemas
+    Webhook:
+      type: object
+      required:
+        - id
+        - url
+        - events
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: ID duy nhất của webhook
+          example: "wh_def456"
+        url:
+          type: string
+          format: uri
+          description: URL endpoint nhận webhook
+          example: "https://example.com/webhooks/orders"
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEvent'
+          minItems: 1
+          description: Danh sách events muốn subscribe
+        secret:
+          type: string
+          description: Secret key để verify webhook signature
+          example: "whsec_xxxxx"
+        isActive:
+          type: boolean
+          description: Trạng thái active của webhook
+          default: true
+        description:
+          type: string
+          description: Mô tả webhook
+          example: "Notify inventory system"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookEvent:
+      type: string
+      enum:
+        - order.created
+        - order.updated
+        - order.status_changed
+        - order.deleted
+      description: Loại sự kiện webhook
+
+    CreateWebhookRequest:
+      type: object
+      required:
+        - url
+        - events
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL endpoint nhận webhook
+          example: "https://example.com/webhooks/orders"
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEvent'
+          minItems: 1
+        secret:
+          type: string
+          description: Secret key tùy chọn (sẽ auto-generate nếu không cung cấp)
+        description:
+          type: string
+
+    UpdateWebhookRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEvent'
+          minItems: 1
+        isActive:
+          type: boolean
+        description:
+          type: string
+
+    WebhookTestResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả test
+        statusCode:
+          type: integer
+          description: HTTP status code từ target
+        responseTime:
+          type: integer
+          description: Thời gian response (ms)
+        message:
+          type: string
+
+    # Webhook Payload (gửi đến third-party)
+    WebhookPayload:
+      type: object
+      description: Payload gửi đến webhook endpoint của bên thứ ba
+      properties:
+        id:
+          type: string
+          description: ID của webhook event
+          example: "evt_123abc"
+        event:
+          $ref: '#/components/schemas/WebhookEvent'
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          type: object
+          description: Dữ liệu của event (order object)
+          properties:
+            order:
+              $ref: '#/components/schemas/Order'
+            previousStatus:
+              type: string
+              description: Status trước đó (cho event status_changed)
+
+    # Error schemas
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Mã lỗi
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Thông báo lỗi
+          example: "Invalid request body"
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+  # ============= Parameters =============
+  parameters:
+    OrderIdParam:
+      name: orderId
+      in: path
+      required: true
+      description: ID của order
+      schema:
+        type: string
+      example: "ord_abc123"
+
+    WebhookIdParam:
+      name: webhookId
+      in: path
+      required: true
+      description: ID của webhook
+      schema:
+        type: string
+      example: "wh_def456"
+
+    PageParam:
+      name: page
+      in: query
+      description: Số trang (bắt đầu từ 1)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Số lượng items mỗi trang
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+  # ============= Responses =============
+  responses:
+    BadRequest:
+      description: Request không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "BAD_REQUEST"
+            message: "Invalid request parameters"
+            details:
+              - field: "customerId"
+                message: "customerId is required"
+
+    NotFound:
+      description: Resource không tìm thấy
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "Order not found"
+
+    InternalServerError:
+      description: Lỗi server
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INTERNAL_ERROR"
+            message: "An unexpected error occurred"
+
+  # ============= Security Schemes =============
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer token authentication
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key authentication
+
+# Global security (có thể override ở từng endpoint)
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []

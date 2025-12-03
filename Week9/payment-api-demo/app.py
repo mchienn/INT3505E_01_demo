@@ -57,19 +57,9 @@ def create_app():
         )
         return response
     
-    # ============================================
-    # V1 API - Payment API
-    # ============================================
-    
     @app.route('/api/v1/payments', methods=['POST'])
     def create_payment():
-        """
-        Tạo payment
-        Body: { amount, currency, source }
-        """
         data = request.get_json() or {}
-        
-        # Validation
         amount = data.get('amount')
         currency = data.get('currency', 'USD')
         source = data.get('source')
@@ -78,8 +68,6 @@ def create_app():
             return jsonify({'error': 'amount must be positive'}), 400
         if not source:
             return jsonify({'error': 'source is required'}), 400
-        
-        # Create payment với V1 shape
         payment_id = str(uuid.uuid4())
         payment = {
             'id': payment_id,
@@ -88,12 +76,9 @@ def create_app():
             'source': source,
             'status': 'pending',
             'created_at': datetime.utcnow().isoformat(),
-            'version': 'v1'  # Mark as V1
+            'version': 'v1'
         }
-        
         app.config['payments'][payment_id] = payment
-        
-        # Trả về V1 shape - chỉ các fields cơ bản (không có description, metadata, updated_at)
         v1_response = {
             'id': payment['id'],
             'amount': payment['amount'],
@@ -102,18 +87,16 @@ def create_app():
             'status': payment['status'],
             'created_at': payment['created_at']
         }
-        return jsonify(v1_response), 201
+        response = jsonify(v1_response)
+        response.headers['Deprecation'] = 'true'
+        response.headers['Sunset'] = 'Wed, 01 Jun 2026 00:00:00 GMT'
+        return response, 201
     
     @app.route('/api/v1/payments/<payment_id>', methods=['GET'])
     def get_payment_v1(payment_id):
-        """
-        Lấy trạng thái payment - V1 shape (backward compatible)
-        """
         payment = app.config['payments'].get(payment_id)
         if not payment:
             return jsonify({'error': 'payment not found'}), 404
-        
-        # Trả về V1 shape - chỉ các fields cơ bản
         v1_response = {
             'id': payment['id'],
             'amount': payment['amount'],
@@ -122,33 +105,23 @@ def create_app():
             'status': payment['status'],
             'created_at': payment['created_at']
         }
-        return jsonify(v1_response), 200
-    
-    # ============================================
-    # V2 API - Payment API (Enhanced)
-    # ============================================
+        response = jsonify(v1_response)
+        response.headers['Deprecation'] = 'true'
+        response.headers['Sunset'] = 'Wed, 01 Jun 2026 00:00:00 GMT'
+        return response, 200
     
     @app.route('/api/v2/payments', methods=['POST'])
     def create_payment_v2():
-        """
-        Tạo payment - V2 với description và metadata
-        Body: { amount, currency, source, description?, metadata? }
-        """
-        data = request.get_json() or {}
-        
-        # Validation
+        data = request.get_json() or {}  
         amount = data.get('amount')
         currency = data.get('currency', 'USD')
         source = data.get('source')
         description = data.get('description')
         metadata = data.get('metadata')
-        
         if not amount or amount <= 0:
             return jsonify({'error': 'amount must be positive'}), 400
         if not source:
             return jsonify({'error': 'source is required'}), 400
-        
-        # Create payment với V2 fields
         payment_id = str(uuid.uuid4())
         payment = {
             'id': payment_id,
@@ -162,22 +135,14 @@ def create_app():
             'updated_at': datetime.utcnow().isoformat(),
             'version': 'v2'
         }
-        
         app.config['payments'][payment_id] = payment
-        
-        # Trả về V2 shape - enriched response
         return jsonify(payment), 201
     
     @app.route('/api/v2/payments/<payment_id>', methods=['GET'])
     def get_payment_v2(payment_id):
-        """
-        Lấy payment - V2 shape (enriched)
-        """
         payment = app.config['payments'].get(payment_id)
         if not payment:
             return jsonify({'error': 'payment not found'}), 404
-        
-        # Nếu payment được tạo bởi V1, vẫn trả về V2 shape nhưng với null cho optional fields
         v2_response = {
             'id': payment['id'],
             'amount': payment['amount'],
@@ -194,35 +159,23 @@ def create_app():
     
     @app.route('/api/v2/payments/<payment_id>', methods=['PATCH'])
     def update_payment_v2(payment_id):
-        """
-        Cập nhật payment - V2 only
-        Body: { status?, metadata? }
-        """
         payment = app.config['payments'].get(payment_id)
         if not payment:
             return jsonify({'error': 'payment not found'}), 404
         
         data = request.get_json() or {}
-        
-        # Update status
         if 'status' in data:
             valid_statuses = ['pending', 'processing', 'completed', 'failed', 'cancelled']
             if data['status'] not in valid_statuses:
                 return jsonify({'error': 'invalid status'}), 400
             payment['status'] = data['status']
-        
-        # Update metadata (merge)
         if 'metadata' in data:
             if payment.get('metadata'):
                 payment['metadata'].update(data['metadata'])
             else:
                 payment['metadata'] = data['metadata']
-        
-        # Update timestamp và version
         payment['updated_at'] = datetime.utcnow().isoformat()
         payment['version'] = 'v2'
-        
-        # Trả về V2 shape
         v2_response = {
             'id': payment['id'],
             'amount': payment['amount'],
@@ -239,18 +192,12 @@ def create_app():
     
     @app.route('/api/v2/payments', methods=['GET'])
     def list_payments_v2():
-        """
-        Liệt kê payments - V2 only với filtering
-        Query params: status?, currency?, limit?, offset?
-        """
         status_filter = request.args.get('status')
         currency_filter = request.args.get('currency')
         limit = int(request.args.get('limit', 10))
         offset = int(request.args.get('offset', 0))
         
         payments = list(app.config['payments'].values())
-        
-        # Apply filters
         if status_filter:
             payments = [p for p in payments if p.get('status') == status_filter]
         if currency_filter:
