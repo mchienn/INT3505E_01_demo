@@ -558,24 +558,6 @@ def test_webhook(webhook_id):
             'message': f'Webhook request failed: {str(e)}'
         })
 
-# ============= Demo Webhook Receiver =============
-
-@app.route('/demo/webhook-receiver', methods=['POST'])
-def demo_webhook_receiver():
-    """Demo endpoint để nhận webhook notifications"""
-    data = request.get_json()
-    event = request.headers.get('X-Webhook-Event', 'unknown')
-    signature = request.headers.get('X-Webhook-Signature', 'none')
-    
-    print(f"\n{'='*50}")
-    print(f"WEBHOOK RECEIVED")
-    print(f"Event: {event}")
-    print(f"Signature: {signature}")
-    print(f"Payload: {data}")
-    print(f"{'='*50}\n")
-    
-    return jsonify({'received': True, 'event': event})
-
 # ============= Health Check =============
 
 @app.route('/health', methods=['GET'])
@@ -646,20 +628,6 @@ def create_sample_data():
             'createdAt': now,
             'updatedAt': now
         }
-    
-    # Sample webhook (pointing to demo receiver)
-    webhook_id = generate_id('wh')
-    now = get_current_time()
-    webhooks_db[webhook_id] = {
-        'id': webhook_id,
-        'url': 'http://localhost:5000/demo/webhook-receiver',
-        'events': ['order.created', 'order.updated', 'order.status_changed', 'order.deleted'],
-        'secret': generate_webhook_secret(),
-        'isActive': True,
-        'description': 'Demo webhook receiver',
-        'createdAt': now,
-        'updatedAt': now
-    }
 
 if __name__ == '__main__':
     create_sample_data()
@@ -673,7 +641,6 @@ if __name__ == '__main__':
     print("  - Health Check:   /health")
     print("\nSample data created:")
     print(f"  - {len(orders_db)} orders")
-    print(f"  - {len(webhooks_db)} webhooks")
     print("="*60 + "\n")
     
     app.run(debug=True, port=5000)
