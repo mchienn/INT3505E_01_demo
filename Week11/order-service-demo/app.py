@@ -198,13 +198,21 @@ def create_order():
 
 @app.route('/api/v1/orders/<order_id>', methods=['GET'])
 def get_order_by_id(order_id):
-    """GET /orders/{orderId} - Lấy thông tin một order"""
+    """GET /orders/{orderId} - Lấy thông tin một order (với HATEOAS links)"""
     order = orders_db.get(order_id)
     
     if not order:
         return error_response('NOT_FOUND', 'Order not found', status_code=404)
     
-    return jsonify(order)
+    # Thêm HATEOAS links đơn giản
+    base_url = request.host_url.rstrip('/')
+    order_with_links = order.copy()
+    order_with_links['_links'] = {
+        'self': f'{base_url}/api/v1/orders/{order_id}',
+        'collection': f'{base_url}/api/v1/orders'
+    }
+    
+    return jsonify(order_with_links)
 
 @app.route('/api/v1/orders/<order_id>', methods=['PUT'])
 def update_order(order_id):
