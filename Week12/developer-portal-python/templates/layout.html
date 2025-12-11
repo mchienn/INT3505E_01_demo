@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <nav>
+        <div class="container nav-content">
+            <div class="logo">DevPortal.</div>
+            <div class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('docs') }}">Docs</a>
+                <a href="{{ url_for('sandbox') }}">Sandbox</a>
+                {% if user %}
+                <a href="{{ url_for('dashboard') }}" style="color: var(--accent-primary)">Dashboard</a>
+                {% else %}
+                <a href="{{ url_for('login') }}">Login</a>
+                {% endif %}
+            </div>
+            {% if not user %}
+            <a href="{{ url_for('register') }}" class="nav-cta">Sign Up</a>
+            {% else %}
+            <a href="{{ url_for('logout') }}" class="btn-secondary"
+                style="padding: 0.5rem; font-size: 0.9rem;">Logout</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    {% block content %}{% endblock %}
+
+    <footer>
+        <div class="container"
+            style="padding: 2rem 0; text-align: center; color: var(--text-secondary); border-top: 1px solid var(--glass-border);">
+            <p>&copy; 2025 Developer Portal Demo. Powered by Flask.</p>
+        </div>
+    </footer>
+</body>
+
+</html>

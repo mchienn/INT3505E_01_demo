@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container" style="padding-top: 100px;">
+    <h2>Dashboard</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 2rem;">Welcome back, {{ username }}!</p>
+
+    <div class="card" style="margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Your API Keys</h3>
+            <form action="{{ url_for('create_key') }}" method="POST">
+                <button type="submit" class="btn btn-primary btn-sm">Generate New Key</button>
+            </form>
+        </div>
+
+        {% if keys %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="text-align: left; border-bottom: 1px solid var(--glass-border);">
+                    <th style="padding: 1rem; color: var(--text-secondary);">Name</th>
+                    <th style="padding: 1rem; color: var(--text-secondary);">Key (Hidden)</th>
+                    <th style="padding: 1rem; color: var(--text-secondary);">Created</th>
+                    <th style="padding: 1rem; color: var(--text-secondary);">Status</th>
+                    <th style="padding: 1rem; color: var(--text-secondary);">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key in keys %}
+                <tr style="border-bottom: 1px solid var(--glass-border);">
+                    <td style="padding: 1rem;">{{ key['name'] }}</td>
+                    <td style="padding: 1rem; font-family: monospace;">
+                        {% if key['active'] %}
+                        {{ key['key_value'][:6] }}...{{ key['key_value'][-4:] }}
+                        <button onclick="navigator.clipboard.writeText('{{ key['key_value'] }}')"
+                            style="background: none; border: none; color: var(--accent-primary); cursor: pointer; ml: 0.5rem;"
+                            title="Copy Full Key">Copy</button>
+                        {% else %}
+                        <span style="text-decoration: line-through; color: var(--text-secondary);">{{
+                            key['key_value'][:10] }}...</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 1rem; color: var(--text-secondary);">{{ key['created_at'] }}</td>
+                    <td style="padding: 1rem;">
+                        {% if key['active'] %}
+                        <span class="status-badge status-200">Active</span>
+                        {% else %}
+                        <span class="status-badge status-400">Revoked</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 1rem;">
+                        {% if key['active'] %}
+                        <form action="{{ url_for('revoke_key', key_id=key['id']) }}" method="POST">
+                            <button type="submit" class="btn btn-sm"
+                                style="background: rgba(239, 68, 68, 0.2); color: #EF4444; border: none; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 4px;">Revoke</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-secondary); font-style: italic;">You haven't generated any keys yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Usage Statistics</h3>
+        <p style="color: var(--text-secondary);">Usage tracking coming soon...</p>
+    </div>
+</div>
+{% endblock %}

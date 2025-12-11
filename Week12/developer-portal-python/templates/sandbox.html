@@ -1,0 +1,273 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container playground-container">
+    <h1>API Playground</h1>
+    <p style="margin-bottom: 2rem; color: var(--text-secondary);">Test API endpoints directly in your browser. Select a
+        mode below.</p>
+
+    <div class="request-panel">
+        <!-- Mode Toggle -->
+        <div style="margin-bottom: 2rem; display: flex; gap: 1rem; align-items: center;">
+            <label style="color: var(--text-primary); font-weight: 600;">Mode:</label>
+            <div
+                style="display: flex; gap: 0.5rem; background: var(--bg-color); padding: 0.25rem; border-radius: 6px; border: 1px solid var(--glass-border);">
+                <button class="btn btn-sm active-mode" id="btnDemo"
+                    style="padding: 0.25rem 0.75rem; border-radius: 4px; border: none; background: var(--accent-primary); color: white; cursor: pointer;">Demo
+                    (No Key)</button>
+                <button class="btn btn-sm" id="btnLive"
+                    style="padding: 0.25rem 0.75rem; border-radius: 4px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer;">Live
+                    (With Key)</button>
+            </div>
+        </div>
+
+        <div class="input-group" id="authGroup" style="display: none;">
+            <label>Authorization Header</label>
+            <div style="display: flex; gap: 0.5rem;">
+                <!-- If user is logged in, maybe prefill their key in JS? For now, manual entry for 'realism' of docs -->
+                <input type="text" class="input-control" id="apiKeyInput" value="" placeholder="Bearer sk_live_...">
+            </div>
+            <small style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">Your key is sent securely
+                to the backend.</small>
+        </div>
+
+        <div class="input-group">
+            <label>Request URL</label>
+            <div class="url-bar">
+                <select class="input-control" style="width: 120px;" id="method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                </select>
+                <!-- NOTE: We point to our local API endpoint -->
+                <input type="text" class="input-control url-input" value="/api/v1/posts" id="url">
+                <button class="btn btn-primary" id="sendBtn">Send Request</button>
+            </div>
+        </div>
+
+        <div class="input-group" id="bodyGroup" style="display: none;">
+            <label>Request Body (JSON)</label>
+            <textarea class="input-control" id="requestBody" rows="5" style="font-family: 'Fira Code', monospace;">{
+"title": "My Post",
+"content": "Hello World"
+}</textarea>
+        </div>
+
+        <!-- Code Snippet -->
+        <div
+            style="margin-top: 2rem; background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
+            <div
+                style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">
+                <span style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 600;">GENERATED CODE</span>
+                <button id="copyCodeBtn"
+                    style="background: none; border: none; color: var(--accent-primary); cursor: pointer; font-size: 0.8rem;">Copy</button>
+            </div>
+            <pre style="font-family: 'Fira Code', monospace; color: var(--text-primary); overflow-x: auto; white-space: pre-wrap;"
+                id="codeSnippet">curl /api/v1/posts</pre>
+        </div>
+    </div>
+
+    <div class="response-area" id="responseArea" style="opacity: 0.5; pointer-events: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Response</h3>
+            <span class="status-badge status-200" id="statusCode">Waiting...</span>
+        </div>
+
+        <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            Latency: <span id="latency">0ms</span>
+        </div>
+
+        <div class="code-block" id="responseBody">
+            // Response will appear here
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Mode toggles
+        const btnDemo = document.getElementById('btnDemo');
+        const btnLive = document.getElementById('btnLive');
+        const authGroup = document.getElementById('authGroup');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+
+        // Inputs
+        const methodSelect = document.getElementById('method');
+        const urlInput = document.getElementById('url');
+        const bodyGroup = document.getElementById('bodyGroup');
+        const requestBody = document.getElementById('requestBody');
+        const codeSnippet = document.getElementById('codeSnippet');
+
+        // Actions & Outputs
+        const sendBtn = document.getElementById('sendBtn');
+        const responseArea = document.getElementById('responseArea');
+        const responseBody = document.getElementById('responseBody');
+        const statusCode = document.getElementById('statusCode');
+        const latency = document.getElementById('latency');
+
+        let currentMode = 'demo'; // demo | live
+
+        // Toggle Mode Logic
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'live') {
+                btnLive.style.background = 'var(--accent-primary)';
+                btnLive.style.color = 'white';
+                btnDemo.style.background = 'transparent';
+                btnDemo.style.color = 'var(--text-secondary)';
+                authGroup.style.display = 'block';
+            } else {
+                btnDemo.style.background = 'var(--accent-primary)';
+                btnDemo.style.color = 'white';
+                btnLive.style.background = 'transparent';
+                btnLive.style.color = 'var(--text-secondary)';
+                authGroup.style.display = 'none';
+            }
+            updateCodeSnippet();
+        }
+
+        btnDemo.addEventListener('click', () => setMode('demo'));
+        btnLive.addEventListener('click', () => setMode('live'));
+
+        // Toggle Body Logic
+        function toggleBody() {
+            const method = methodSelect.value;
+            if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+                bodyGroup.style.display = 'block';
+            } else {
+                bodyGroup.style.display = 'none';
+            }
+            updateCodeSnippet();
+        }
+
+        // Generate Code Snippet (cURL)
+        function updateCodeSnippet() {
+            const method = methodSelect.value;
+            const url = urlInput.value;
+            const body = requestBody.value;
+
+            let snippet = `curl -X ${method} "${window.location.origin}${url}"`;
+
+            // Add Headers
+            snippet += ` \\\n  -H "Content-Type: application/json"`;
+
+            if (currentMode === 'live') {
+                const token = apiKeyInput.value || 'YOUR_API_KEY';
+                snippet += ` \\\n  -H "Authorization: ${token}"`;
+            }
+
+            // Add Body
+            if ((method === 'POST' || method === 'PUT') && body) {
+                try {
+                    const minified = JSON.stringify(JSON.parse(body));
+                    snippet += ` \\\n  -d '${minified}'`;
+                } catch (e) {
+                    snippet += ` \\\n  -d '${body.replace(/\\n/g, '')}'`;
+                }
+            }
+
+            codeSnippet.textContent = snippet;
+        }
+
+        // Event Listeners for Dynamic Updates
+        methodSelect.addEventListener('change', toggleBody);
+        urlInput.addEventListener('input', updateCodeSnippet);
+        requestBody.addEventListener('input', updateCodeSnippet);
+        apiKeyInput.addEventListener('input', updateCodeSnippet);
+
+        toggleBody();
+
+        // Mock Response for Demo Mode
+        const mockResponses = {
+            'GET': {
+                'data': [
+                    {
+                        "id": "demo_1",
+                        "title": "Demo Data",
+                        "content": "This is demo content returned without hitting the real backend."
+                    }
+                ],
+                'meta': {
+                    'page': 1,
+                    'total': 1
+                }
+            },
+            'POST': {
+                "id": "demo_new",
+                "title": "Demo Post",
+                "status": "created (simulated)"
+            }
+        };
+
+        sendBtn.addEventListener('click', async () => {
+            sendBtn.textContent = 'Sending...';
+            sendBtn.disabled = true;
+            responseArea.style.opacity = '0.5';
+
+            const startTime = Date.now();
+            const method = methodSelect.value;
+            const url = urlInput.value;
+
+            try {
+                let data;
+                let status = 200;
+                let statusText = 'OK';
+
+                if (currentMode === 'live') {
+                    // REAL FETCH CALL TO OUR BACKEND
+                    const headers = {
+                        'Content-Type': 'application/json'
+                    };
+
+                    const token = apiKeyInput.value;
+                    if (token) {
+                        headers['Authorization'] = token;
+                    }
+
+                    const options = {
+                        method: method,
+                        headers: headers
+                    };
+
+                    if (method === 'POST') {
+                        options.body = requestBody.value;
+                    }
+
+                    const res = await fetch(url, options);
+                    status = res.status;
+                    statusText = res.statusText;
+                    data = await res.json();
+
+                } else {
+                    // DEMO MODE (Simulation)
+                    await new Promise(r => setTimeout(r, 600)); // Latency
+                    data = mockResponses[method];
+                    status = 200;
+                }
+
+                const endTime = Date.now();
+
+                responseBody.textContent = JSON.stringify(data, null, 2);
+                statusCode.textContent = `${status} ${statusText}`;
+
+                if (status >= 200 && status < 300) {
+                    statusCode.className = 'status-badge status-200';
+                } else {
+                    statusCode.className = 'status-badge status-400';
+                }
+
+                latency.textContent = `${endTime - startTime}ms`;
+
+            } catch (error) {
+                responseBody.textContent = JSON.stringify({ "error": error.message }, null, 2);
+                statusCode.className = 'status-badge status-400';
+                statusCode.textContent = 'Error';
+            }
+
+            responseArea.style.opacity = '1';
+            responseArea.style.pointerEvents = 'all';
+            sendBtn.textContent = 'Send Request';
+            sendBtn.disabled = false;
+        });
+    });
+</script>
+{% endblock %}

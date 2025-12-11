@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container" style="padding-top: 150px; max-width: 400px; text-align: center;">
+    <h2>Register</h2>
+    {% if error %}
+    <div
+        style="background: rgba(239, 68, 68, 0.2); color: #EF4444; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem;">
+        {{ error }}</div>
+    {% endif %}
+    <form method="POST" class="card" style="text-align: left;">
+        <div class="input-group" style="margin-bottom: 1rem;">
+            <label>Username</label>
+            <input type="text" name="username" class="input-control" required>
+        </div>
+        <div class="input-group" style="margin-bottom: 1.5rem;">
+            <label>Password</label>
+            <input type="password" name="password" class="input-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%">Create Account</button>
+        <p style="margin-top: 1rem; font-size: 0.9rem; text-align: center;">Already have an account? <a
+                href="{{ url_for('login') }}" style="color: var(--accent-primary);">Log in</a></p>
+    </form>
+</div>
+{% endblock %}
